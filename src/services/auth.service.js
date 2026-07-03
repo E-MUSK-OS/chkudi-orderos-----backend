@@ -29,7 +29,7 @@ import {
   deleteOtp,
 } from "../repositories/otp.repository.js";
 
-export const signupService = async ({ fullName, email, password }) => {
+export const signupService = async ({ fullName, email, password, confirmPassword }) => {
   const existingUser = await findUserByEmail(email);
 
   if (existingUser) {

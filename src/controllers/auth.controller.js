@@ -18,6 +18,7 @@ import {
   resetPasswordService,
 } from "../services/auth.service.js";
 import { resendOtpService } from "../repositories/auth.repository.js";
+import { ZodError } from "zod";
 
 export const signup = async (req, res) => {
   try {
@@ -31,6 +32,13 @@ export const signup = async (req, res) => {
       data: result,
     });
   } catch (error) {
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        success: false,
+        message: error.issues[0].message,
+      });
+    }
+
     return res.status(400).json({
       success: false,
       message: error.message,
@@ -50,6 +58,13 @@ export const login = async (req, res) => {
       data: result,
     });
   } catch (error) {
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        success: false,
+        message: error.issues[0].message,
+      });
+    }
+
     return res.status(400).json({
       success: false,
       message: error.message,
@@ -68,6 +83,13 @@ export const logout = async (req, res) => {
       message: "Logout successful",
     });
   } catch (error) {
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        success: false,
+        message: error.issues[0].message,
+      });
+    }
+
     return res.status(400).json({
       success: false,
       message: error.message,
@@ -87,6 +109,13 @@ export const refreshToken = async (req, res) => {
       data: tokens,
     });
   } catch (error) {
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        success: false,
+        message: error.issues[0].message,
+      });
+    }
+
     return res.status(401).json({
       success: false,
       message: error.message,
@@ -104,6 +133,13 @@ export const getMe = async (req, res) => {
       data: user,
     });
   } catch (error) {
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        success: false,
+        message: error.issues[0].message,
+      });
+    }
+
     return res.status(404).json({
       success: false,
       message: error.message,
@@ -122,6 +158,13 @@ export const sendOtp = async (req, res) => {
       message: "OTP sent successfully",
     });
   } catch (error) {
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        success: false,
+        message: error.issues[0].message,
+      });
+    }
+
     return res.status(400).json({
       success: false,
       message: error.message,
@@ -151,6 +194,13 @@ export const verifyOtp = async (req, res) => {
       resetToken: result.resetToken,
     });
   } catch (error) {
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        success: false,
+        message: error.issues[0].message,
+      });
+    }
+
     return res.status(400).json({
       success: false,
       message: error.message,
@@ -169,6 +219,13 @@ export const forgotPassword = async (req, res) => {
       message: "Password reset OTP sent successfully.",
     });
   } catch (error) {
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        success: false,
+        message: error.issues[0].message,
+      });
+    }
+
     return res.status(400).json({
       success: false,
       message: error.message,
@@ -187,6 +244,13 @@ export const resetPassword = async (req, res) => {
       message: "Password reset successfully.",
     });
   } catch (error) {
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        success: false,
+        message: error.issues[0].message,
+      });
+    }
+
     return res.status(400).json({
       success: false,
       message: error.message,
@@ -205,6 +269,13 @@ export const resendOtp = async (req, res) => {
       message: "OTP resent successfully.",
     });
   } catch (error) {
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        success: false,
+        message: error.issues[0].message,
+      });
+    }
+
     return res.status(400).json({
       success: false,
       message: error.message,
