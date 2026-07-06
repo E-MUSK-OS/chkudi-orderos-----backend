@@ -1,0 +1,128 @@
+import { uploadVMSSchema } from "../validations/vms.validation.js";
+
+import {
+  createScanService,
+  getScanByIdService,
+  getScanByTrackingIdService,
+  getAllScansService,
+  updateScanService,
+  deleteScanService,
+  uploadRecordingService,
+} from "../services/vms.service.js";
+
+export const createScan = async (req, res, next) => {
+  try {
+    const body = uploadVMSSchema.parse(req.body);
+
+    const scan = await createScanService(body);
+
+    return res.status(201).json({
+      success: true,
+      message: "Scan created successfully.",
+      data: scan,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const uploadRecording = async (req, res, next) => {
+  try {
+    const body = uploadVMSSchema.parse(req.body);
+
+    const result = await uploadRecordingService({
+      trackingId: body.trackingId,
+      file: req.file,
+      operatorId: body.operatorId,
+      cameraName: body.cameraName,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Recording uploaded successfully.",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getScanById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const scan = await getScanByIdService(id);
+
+    return res.status(200).json({
+      success: true,
+      data: scan,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getScanByTrackingId = async (req, res, next) => {
+  try {
+    const { trackingId } = req.params;
+
+    const scan = await getScanByTrackingIdService(trackingId);
+
+    return res.status(200).json({
+      success: true,
+      data: scan,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getAllScans = async (req, res, next) => {
+  try {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 20;
+
+    const result = await getAllScansService({
+      page,
+      limit,
+    });
+
+    return res.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateScan = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const scan = await updateScanService(id, req.body);
+
+    return res.status(200).json({
+      success: true,
+      message: "Scan updated successfully.",
+      data: scan,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteScan = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    await deleteScanService(id);
+
+    return res.status(200).json({
+      success: true,
+      message: "Scan deleted successfully.",
+    });
+  } catch (error) {
+    next(error);
+  }
+};

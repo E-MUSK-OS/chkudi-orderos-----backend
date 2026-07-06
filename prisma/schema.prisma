@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
@@ -77,4 +77,38 @@ model EmailOtp {
 enum OtpPurpose {
   EMAIL_VERIFICATION
   FORGOT_PASSWORD
+}
+
+// ==================================================================================
+// ====================================== VMS MODEL =================================
+// ==================================================================================
+
+model VMSScan {
+  id           String  @id @default(cuid())
+  trackingId   String
+  videoUrl     String?
+  thumbnailUrl String?
+
+  status String @default("PENDING")
+
+  fileName String?
+  fileSize Int?
+
+  duration Int?
+
+  operatorId String?
+
+  cameraName String?
+
+  uploadedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum ScanStatus {
+  PENDING
+  UPLOADING
+  COMPLETED
+  FAILED
 }
