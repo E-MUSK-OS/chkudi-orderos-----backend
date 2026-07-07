@@ -27,6 +27,11 @@ export const createScan = async (req, res, next) => {
 };
 
 export const uploadRecording = async (req, res, next) => {
+  // console.log("UPLOAD HIT");
+
+  // console.log(req.body);
+
+  // console.log(req.file);
   try {
     const body = uploadVMSSchema.parse(req.body);
 

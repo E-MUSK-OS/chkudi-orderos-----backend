@@ -1,5 +1,6 @@
 import prisma from "../config/prisma.js";
 
+
 export const createScan = async (data) => {
   return await prisma.vMSScan.create({
     data,
@@ -56,4 +57,10 @@ export const getAllScans = async ({ page = 1, limit = 20 }) => {
 
 export const getScanCount = async () => {
   return await prisma.vMSScan.count();
+};
+
+export const createUploadedScan = async (data) => {
+  return await prisma.vMSScan.create({
+    data,
+  });
 };

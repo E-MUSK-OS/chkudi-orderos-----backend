@@ -6,7 +6,9 @@ import {
   getAllScans,
   getScanCount,
   deleteScan,
+  createUploadedScan,
 } from "../repositories/vms.repository.js";
+import { uploadVideoToCloudinary } from "../utils/cloudinaryUpload.js";
 
 export const createScanService = async (data) => {
   return await createScan(data);
@@ -45,17 +47,109 @@ export const getAllScansService = async ({ page = 1, limit = 20 }) => {
   };
 };
 
+// export const uploadRecordingService = async ({
+//   trackingId,
+//   file,
+//   operatorId,
+//   cameraName,
+// }) => {
+//   return {
+//     success: true,
+//     trackingId,
+//     file,
+//     operatorId,
+//     cameraName,
+//   };
+// };
+
 export const uploadRecordingService = async ({
   trackingId,
   file,
   operatorId,
   cameraName,
 }) => {
-  return {
-    success: true,
-    trackingId,
-    file,
-    operatorId,
-    cameraName,
-  };
+  if (!file) {
+    throw new Error("Video file is required.");
+  }
+
+  // Create DB Row
+  const existing = await getScanByTrackingId(trackingId);
+
+  let scan;
+
+  if (existing) {
+    scan = await updateScan(existing.id, {
+      status: "UPLOADING",
+
+      operatorId: operatorId || null,
+
+      cameraName: cameraName || null,
+    });
+  } else {
+    scan = await createUploadedScan({
+      trackingId,
+
+      status: "UPLOADING",
+
+      operatorId: operatorId || null,
+
+      cameraName: cameraName || null,
+    });
+  }
+
+  // Upload Video
+  // const cloudinaryResult = await uploadVideoToCloudinary(
+  //   file.buffer,
+  //   trackingId,
+  // );
+
+  // await updateScan(scan.id, {
+  //   status: "COMPLETED",
+
+  //   videoUrl: cloudinaryResult.secure_url,
+
+  //   fileName: file.originalname,
+
+  //   fileSize: file.size,
+
+  //   duration: cloudinaryResult.duration
+  //     ? Math.round(cloudinaryResult.duration)
+  //     : null,
+
+  //   uploadedAt: new Date(),
+  // });
+
+  try {
+    const cloudinaryResult = await uploadVideoToCloudinary(
+      file.buffer,
+      trackingId,
+    );
+
+    await updateScan(scan.id, {
+      status: "COMPLETED",
+
+      videoUrl: cloudinaryResult.secure_url,
+
+      fileName: file.originalname,
+
+      fileSize: file.size,
+
+      duration: cloudinaryResult.duration
+        ? Math.round(cloudinaryResult.duration)
+        : null,
+
+      uploadedAt: new Date(),
+    });
+
+    return await getScanById(scan.id);
+  } catch (error) {
+    await updateScan(scan.id, {
+      status: "FAILED",
+    });
+
+    throw error;
+  }
+
+  // Return Updated Record
+  return await getScanById(scan.id);
 };
