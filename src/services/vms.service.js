@@ -12,6 +12,7 @@ import { uploadVideoToCloudinary } from "../utils/cloudinaryUpload.js";
 import { generateThumbnailUrl } from "../utils/generateThumbnail.js";
 import { generateUploadSignature } from "../utils/cloudinarySignature.js";
 import { deleteVideoFromCloudinary } from "../utils/cloudinaryDelete.js";
+import cloudinary from "../config/cloudinary.js";
 
 export const createScanService = async (data) => {
   return await createScan(data);
