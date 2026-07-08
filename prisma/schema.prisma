@@ -89,6 +89,8 @@ model VMSScan {
   videoUrl     String?
   thumbnailUrl String?
 
+  publicId String?
+
   status String @default("PENDING")
 
   fileName String?
