@@ -9,6 +9,7 @@ import {
   createUploadedScan,
 } from "../repositories/vms.repository.js";
 import { uploadVideoToCloudinary } from "../utils/cloudinaryUpload.js";
+import { generateThumbnailUrl } from "../utils/generateThumbnail.js";
 
 export const createScanService = async (data) => {
   return await createScan(data);
@@ -124,11 +125,14 @@ export const uploadRecordingService = async ({
       file.buffer,
       trackingId,
     );
+    const thumbnailUrl = generateThumbnailUrl(cloudinaryResult.secure_url);
 
     await updateScan(scan.id, {
       status: "COMPLETED",
 
       videoUrl: cloudinaryResult.secure_url,
+
+      thumbnailUrl,
 
       fileName: file.originalname,
 
