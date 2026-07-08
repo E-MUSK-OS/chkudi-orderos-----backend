@@ -10,6 +10,7 @@ import {
 } from "../repositories/vms.repository.js";
 import { uploadVideoToCloudinary } from "../utils/cloudinaryUpload.js";
 import { generateThumbnailUrl } from "../utils/generateThumbnail.js";
+import { generateUploadSignature } from "../utils/cloudinarySignature.js";
 
 export const createScanService = async (data) => {
   return await createScan(data);
@@ -156,4 +157,8 @@ export const uploadRecordingService = async ({
 
   // Return Updated Record
   return await getScanById(scan.id);
+};
+
+export const getUploadSignatureService = async () => {
+  return generateUploadSignature();
 };

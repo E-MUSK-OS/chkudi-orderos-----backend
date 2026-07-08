@@ -8,6 +8,7 @@ import {
   updateScanService,
   deleteScanService,
   uploadRecordingService,
+  getUploadSignatureService,
 } from "../services/vms.service.js";
 
 export const createScan = async (req, res, next) => {
@@ -126,6 +127,20 @@ export const deleteScan = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "Scan deleted successfully.",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getUploadSignature = async (req, res, next) => {
+  try {
+    const signature = await getUploadSignatureService();
+
+    return res.status(200).json({
+      success: true,
+      message: "Cloudinary upload signature generated successfully.",
+      data: signature,
     });
   } catch (error) {
     next(error);
