@@ -134,27 +134,28 @@ export const uploadRecordingService = async ({
 export const getUploadSignatureService = async (publicId) => {
   const timestamp = Math.round(Date.now() / 1000);
 
-  // Ensure publicId is unique by adding timestamp if it already exists
+  // Public ID with timestamp for uniqueness
   const uniquePublicId = `${publicId}_${timestamp}`;
 
   const params = {
-    timestamp,
+    timestamp: timestamp,
     folder: "vms-recordings",
     public_id: uniquePublicId,
-    overwrite: false, // Set to false to prevent overwriting
+    overwrite: false,
   };
 
+  // Generate signature with ALL parameters
   const signature = cloudinary.utils.api_sign_request(
     params,
     process.env.CLOUDINARY_API_SECRET,
   );
 
   return {
-    timestamp,
+    timestamp: timestamp,
     folder: "vms-recordings",
     publicId: uniquePublicId,
     overwrite: false,
-    signature,
+    signature: signature,
     apiKey: process.env.CLOUDINARY_API_KEY,
     cloudName: process.env.CLOUDINARY_CLOUD_NAME,
   };
