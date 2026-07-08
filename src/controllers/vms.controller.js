@@ -9,6 +9,7 @@ import {
   deleteScanService,
   uploadRecordingService,
   getUploadSignatureService,
+  saveRecordingService,
 } from "../services/vms.service.js";
 
 export const createScan = async (req, res, next) => {
