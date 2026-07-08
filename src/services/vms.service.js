@@ -162,3 +162,62 @@ export const uploadRecordingService = async ({
 export const getUploadSignatureService = async () => {
   return generateUploadSignature();
 };
+
+export const saveRecordingService = async ({
+  trackingId,
+  videoUrl,
+  thumbnailUrl,
+  duration,
+  bytes,
+  publicId,
+  operatorId,
+  cameraName,
+}) => {
+  let scan = await getScanByTrackingId(trackingId);
+
+  if (scan) {
+    scan = await updateScan(scan.id, {
+      status: "COMPLETED",
+
+      videoUrl,
+
+      thumbnailUrl,
+
+      duration: duration ? Math.round(duration) : null,
+
+      fileSize: bytes,
+
+      publicId,
+
+      uploadedAt: new Date(),
+
+      operatorId: operatorId || null,
+
+      cameraName: cameraName || null,
+    });
+  } else {
+    scan = await createUploadedScan({
+      trackingId,
+
+      status: "COMPLETED",
+
+      videoUrl,
+
+      thumbnailUrl,
+
+      duration: duration ? Math.round(duration) : null,
+
+      fileSize: bytes,
+
+      publicId,
+
+      uploadedAt: new Date(),
+
+      operatorId: operatorId || null,
+
+      cameraName: cameraName || null,
+    });
+  }
+
+  return scan;
+};

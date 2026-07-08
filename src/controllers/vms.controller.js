@@ -146,3 +146,16 @@ export const getUploadSignature = async (req, res, next) => {
     next(error);
   }
 };
+
+export const saveRecording = async (req, res, next) => {
+  try {
+    const result = await saveRecordingService(req.body);
+
+    res.status(201).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
