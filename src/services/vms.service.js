@@ -76,89 +76,55 @@ export const uploadRecordingService = async ({
     throw new Error("Video file is required.");
   }
 
-  // Create DB Row
+  // Always create a new scan record for each upload
+  // This ensures we don't overwrite existing completed recordings
+
+  // Check if there's an existing scan with this trackingId
   const existing = await getScanByTrackingId(trackingId);
 
-  let scan;
-
-  if (existing) {
-    scan = await updateScan(existing.id, {
-      status: "UPLOADING",
-
-      operatorId: operatorId || null,
-
-      cameraName: cameraName || null,
-    });
-  } else {
-    scan = await createUploadedScan({
-      trackingId,
-
-      status: "UPLOADING",
-
-      operatorId: operatorId || null,
-
-      cameraName: cameraName || null,
-    });
-  }
-
-  // Upload Video
-  // const cloudinaryResult = await uploadVideoToCloudinary(
-  //   file.buffer,
-  //   trackingId,
-  // );
-
-  // await updateScan(scan.id, {
-  //   status: "COMPLETED",
-
-  //   videoUrl: cloudinaryResult.secure_url,
-
-  //   fileName: file.originalname,
-
-  //   fileSize: file.size,
-
-  //   duration: cloudinaryResult.duration
-  //     ? Math.round(cloudinaryResult.duration)
-  //     : null,
-
-  //   uploadedAt: new Date(),
-  // });
+  // Create a new record for each upload attempt
+  // Even if the trackingId exists, we create a new entry
+  // This preserves history
+  const scan = await createUploadedScan({
+    trackingId,
+    status: "PENDING",
+    operatorId: operatorId || null,
+    cameraName: cameraName || null,
+  });
 
   try {
+    // Upload to Cloudinary
     const cloudinaryResult = await uploadVideoToCloudinary(
       file.buffer,
-      trackingId,
+      `${trackingId}_${Date.now()}`, // Add timestamp to make publicId unique
     );
+
     const thumbnailUrl = generateThumbnailUrl(cloudinaryResult.secure_url);
 
-    await updateScan(scan.id, {
+    // Update the scan with Cloudinary details
+    const updatedScan = await updateScan(scan.id, {
       status: "COMPLETED",
-
       videoUrl: cloudinaryResult.secure_url,
-
       thumbnailUrl,
-
       fileName: file.originalname,
-
       fileSize: file.size,
-
       duration: cloudinaryResult.duration
         ? Math.round(cloudinaryResult.duration)
         : null,
-
+      publicId: cloudinaryResult.public_id,
+      version: cloudinaryResult.version,
       uploadedAt: new Date(),
     });
 
     return await getScanById(scan.id);
   } catch (error) {
+    // Update status to FAILED
     await updateScan(scan.id, {
       status: "FAILED",
     });
 
     throw error;
   }
-
-  // Return Updated Record
-  return await getScanById(scan.id);
 };
 
 // export const getUploadSignatureService = async () => {
@@ -168,11 +134,14 @@ export const uploadRecordingService = async ({
 export const getUploadSignatureService = async (publicId) => {
   const timestamp = Math.round(Date.now() / 1000);
 
+  // Ensure publicId is unique by adding timestamp if it already exists
+  const uniquePublicId = `${publicId}_${timestamp}`;
+
   const params = {
     timestamp,
     folder: "vms-recordings",
-    public_id: publicId,
-    overwrite: true,
+    public_id: uniquePublicId,
+    overwrite: false, // Set to false to prevent overwriting
   };
 
   const signature = cloudinary.utils.api_sign_request(
@@ -183,13 +152,79 @@ export const getUploadSignatureService = async (publicId) => {
   return {
     timestamp,
     folder: "vms-recordings",
-    publicId,
-    overwrite: true,
+    publicId: uniquePublicId,
+    overwrite: false,
     signature,
     apiKey: process.env.CLOUDINARY_API_KEY,
     cloudName: process.env.CLOUDINARY_CLOUD_NAME,
   };
 };
+
+// export const saveRecordingService = async ({
+//   trackingId,
+//   videoUrl,
+//   thumbnailUrl,
+//   duration,
+//   bytes,
+//   publicId,
+//   version,
+//   operatorId,
+//   cameraName,
+// }) => {
+//   let scan = await getScanByTrackingId(trackingId);
+
+//   if (scan) {
+//     if (scan.publicId) {
+//       await deleteVideoFromCloudinary(scan.publicId);
+//     }
+
+//     scan = await updateScan(scan.id, {
+//       status: "COMPLETED",
+
+//       videoUrl,
+
+//       thumbnailUrl,
+
+//       duration: duration ? Math.round(duration) : null,
+
+//       fileSize: bytes,
+
+//       publicId,
+
+//       version,
+
+//       uploadedAt: new Date(),
+
+//       operatorId: operatorId || null,
+
+//       cameraName: cameraName || null,
+//     });
+//   } else {
+//     scan = await createUploadedScan({
+//       trackingId,
+
+//       status: "COMPLETED",
+
+//       videoUrl,
+
+//       thumbnailUrl,
+
+//       duration: duration ? Math.round(duration) : null,
+
+//       fileSize: bytes,
+
+//       publicId,
+
+//       uploadedAt: new Date(),
+
+//       operatorId: operatorId || null,
+
+//       cameraName: cameraName || null,
+//     });
+//   }
+
+//   return scan;
+// };
 
 export const saveRecordingService = async ({
   trackingId,
@@ -202,57 +237,71 @@ export const saveRecordingService = async ({
   operatorId,
   cameraName,
 }) => {
-  let scan = await getScanByTrackingId(trackingId);
+  // Always create a new record for new uploads
+  // This preserves history and prevents deletion issues
 
-  if (scan) {
-    if (scan.publicId) {
-      await deleteVideoFromCloudinary(scan.publicId);
-    }
+  // Check if there's an existing scan with this trackingId that is COMPLETED
+  const existingScan = await getScanByTrackingId(trackingId);
 
-    scan = await updateScan(scan.id, {
-      status: "COMPLETED",
-
-      videoUrl,
-
-      thumbnailUrl,
-
-      duration: duration ? Math.round(duration) : null,
-
-      fileSize: bytes,
-
-      publicId,
-
-      version,
-
-      uploadedAt: new Date(),
-
-      operatorId: operatorId || null,
-
-      cameraName: cameraName || null,
-    });
-  } else {
-    scan = await createUploadedScan({
+  if (existingScan && existingScan.status === "COMPLETED") {
+    // If there's a completed scan, create a new one instead of updating
+    // This keeps history of all uploads
+    const newScan = await createUploadedScan({
       trackingId,
-
       status: "COMPLETED",
-
       videoUrl,
-
       thumbnailUrl,
-
       duration: duration ? Math.round(duration) : null,
-
       fileSize: bytes,
-
       publicId,
-
+      version,
       uploadedAt: new Date(),
-
       operatorId: operatorId || null,
-
       cameraName: cameraName || null,
     });
+    return newScan;
   }
 
-  return scan;
+  // If scan exists but is not COMPLETED (PENDING, UPLOADING, FAILED), update it
+  if (existingScan && existingScan.status !== "COMPLETED") {
+    // Delete old video from Cloudinary if it exists
+    if (existingScan.publicId) {
+      try {
+        await deleteVideoFromCloudinary(existingScan.publicId);
+      } catch (error) {
+        console.error("Failed to delete old video:", error);
+        // Continue anyway
+      }
+    }
+
+    const updatedScan = await updateScan(existingScan.id, {
+      status: "COMPLETED",
+      videoUrl,
+      thumbnailUrl,
+      duration: duration ? Math.round(duration) : null,
+      fileSize: bytes,
+      publicId,
+      version,
+      uploadedAt: new Date(),
+      operatorId: operatorId || null,
+      cameraName: cameraName || null,
+    });
+    return updatedScan;
+  }
+
+  // No existing scan, create a new one
+  const newScan = await createUploadedScan({
+    trackingId,
+    status: "COMPLETED",
+    videoUrl,
+    thumbnailUrl,
+    duration: duration ? Math.round(duration) : null,
+    fileSize: bytes,
+    publicId,
+    version,
+    uploadedAt: new Date(),
+    operatorId: operatorId || null,
+    cameraName: cameraName || null,
+  });
+  return newScan;
 };

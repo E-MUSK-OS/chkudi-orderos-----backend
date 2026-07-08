@@ -90,7 +90,7 @@ model VMSScan {
   thumbnailUrl String?
 
   publicId String?
-  version Int?
+  version  Int?
 
   status String @default("PENDING")
 
@@ -107,6 +107,9 @@ model VMSScan {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([trackingId])
+  @@index([status])
 }
 
 enum ScanStatus {
