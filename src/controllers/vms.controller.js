@@ -136,7 +136,7 @@ export const deleteScan = async (req, res, next) => {
 
 export const getUploadSignature = async (req, res, next) => {
   try {
-    const signature = await getUploadSignatureService();
+    const signature = await getUploadSignatureService(req.body.publicId);
 
     return res.status(200).json({
       success: true,

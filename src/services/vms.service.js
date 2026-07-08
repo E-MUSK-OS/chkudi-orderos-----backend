@@ -11,6 +11,7 @@ import {
 import { uploadVideoToCloudinary } from "../utils/cloudinaryUpload.js";
 import { generateThumbnailUrl } from "../utils/generateThumbnail.js";
 import { generateUploadSignature } from "../utils/cloudinarySignature.js";
+import { deleteVideoFromCloudinary } from "../utils/cloudinaryDelete.js";
 
 export const createScanService = async (data) => {
   return await createScan(data);
@@ -159,8 +160,34 @@ export const uploadRecordingService = async ({
   return await getScanById(scan.id);
 };
 
-export const getUploadSignatureService = async () => {
-  return generateUploadSignature();
+// export const getUploadSignatureService = async () => {
+//   return generateUploadSignature();
+// };
+
+export const getUploadSignatureService = async (publicId) => {
+  const timestamp = Math.round(Date.now() / 1000);
+
+  const params = {
+    timestamp,
+    folder: "vms-recordings",
+    public_id: publicId,
+    overwrite: true,
+  };
+
+  const signature = cloudinary.utils.api_sign_request(
+    params,
+    process.env.CLOUDINARY_API_SECRET,
+  );
+
+  return {
+    timestamp,
+    folder: "vms-recordings",
+    publicId,
+    overwrite: true,
+    signature,
+    apiKey: process.env.CLOUDINARY_API_KEY,
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+  };
 };
 
 export const saveRecordingService = async ({
@@ -170,12 +197,17 @@ export const saveRecordingService = async ({
   duration,
   bytes,
   publicId,
+  version,
   operatorId,
   cameraName,
 }) => {
   let scan = await getScanByTrackingId(trackingId);
 
   if (scan) {
+    if (scan.publicId) {
+      await deleteVideoFromCloudinary(scan.publicId);
+    }
+
     scan = await updateScan(scan.id, {
       status: "COMPLETED",
 
@@ -188,6 +220,8 @@ export const saveRecordingService = async ({
       fileSize: bytes,
 
       publicId,
+
+      version,
 
       uploadedAt: new Date(),
 
