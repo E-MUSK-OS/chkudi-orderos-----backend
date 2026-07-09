@@ -88,6 +88,7 @@ export const uploadRecordingService = async ({
   // This preserves history
   const scan = await createUploadedScan({
     trackingId,
+    userId,
     status: "PENDING",
     operatorId: operatorId || null,
     cameraName: cameraName || null,
@@ -279,6 +280,7 @@ export const saveRecordingService = async ({
     }
 
     const updatedScan = await updateScan(existingScan.id, {
+      userId,
       status: "COMPLETED",
       videoUrl,
       thumbnailUrl,

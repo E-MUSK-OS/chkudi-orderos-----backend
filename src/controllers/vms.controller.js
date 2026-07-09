@@ -39,6 +39,7 @@ export const uploadRecording = async (req, res, next) => {
 
     const result = await uploadRecordingService({
       trackingId: body.trackingId,
+      userId: body.userId,
       file: req.file,
       operatorId: body.operatorId,
       cameraName: body.cameraName,
