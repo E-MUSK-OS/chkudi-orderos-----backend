@@ -106,6 +106,8 @@ model VMSScan {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  operatorId String?
+
   cameraName String?
 
   uploadedAt DateTime?
