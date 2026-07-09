@@ -68,6 +68,7 @@ export const getAllScansService = async ({ page = 1, limit = 20 }) => {
 
 export const uploadRecordingService = async ({
   trackingId,
+  userId,
   file,
   operatorId,
   cameraName,
@@ -229,6 +230,7 @@ export const getUploadSignatureService = async (publicId) => {
 
 export const saveRecordingService = async ({
   trackingId,
+  userId,
   videoUrl,
   thumbnailUrl,
   duration,
@@ -249,6 +251,7 @@ export const saveRecordingService = async ({
     // This keeps history of all uploads
     const newScan = await createUploadedScan({
       trackingId,
+      userId,
       status: "COMPLETED",
       videoUrl,
       thumbnailUrl,

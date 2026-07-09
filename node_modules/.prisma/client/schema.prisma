@@ -48,6 +48,7 @@ model User {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   refreshTokens RefreshToken[]
+  vmsscans      VMSScan[]
 }
 
 enum Role {
@@ -84,8 +85,10 @@ enum OtpPurpose {
 // ==================================================================================
 
 model VMSScan {
-  id           String  @id @default(cuid())
-  trackingId   String
+  id String @id @default(cuid())
+
+  trackingId String
+
   videoUrl     String?
   thumbnailUrl String?
 
@@ -99,7 +102,9 @@ model VMSScan {
 
   duration Int?
 
-  operatorId String?
+  userId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   cameraName String?
 
@@ -110,6 +115,7 @@ model VMSScan {
 
   @@index([trackingId])
   @@index([status])
+  @@index([userId])
 }
 
 enum ScanStatus {
