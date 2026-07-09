@@ -296,6 +296,7 @@ export const saveRecordingService = async ({
   // No existing scan, create a new one
   const newScan = await createUploadedScan({
     trackingId,
+    userId,
     status: "COMPLETED",
     videoUrl,
     thumbnailUrl,
