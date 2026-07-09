@@ -64,3 +64,15 @@ export const createUploadedScan = async (data) => {
     data,
   });
 };
+
+export const getUserVMS = async (userId) => {
+  return await prisma.vMSScan.findMany({
+    where: {
+      userId,
+    },
+
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+};

@@ -1,4 +1,7 @@
-import { uploadVMSSchema } from "../validations/vms.validation.js";
+import {
+  uploadVMSSchema,
+  getUserVMSchema,
+} from "../validations/vms.validation.js";
 
 import {
   createScanService,
@@ -10,6 +13,7 @@ import {
   uploadRecordingService,
   getUploadSignatureService,
   saveRecordingService,
+  getUserVMSService,
 } from "../services/vms.service.js";
 
 export const createScan = async (req, res, next) => {
@@ -156,6 +160,23 @@ export const saveRecording = async (req, res, next) => {
     res.status(201).json({
       success: true,
       data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getUserVMS = async (req, res, next) => {
+  try {
+    const body = getUserVMSchema.parse(req.body);
+
+    const scans = await getUserVMSService(body.userId);
+
+    return res.status(200).json({
+      success: true,
+      message: "User VMS fetched successfully.",
+      total: scans.length,
+      data: scans,
     });
   } catch (error) {
     next(error);

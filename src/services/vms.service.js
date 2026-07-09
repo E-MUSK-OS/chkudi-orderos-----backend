@@ -7,6 +7,7 @@ import {
   getScanCount,
   deleteScan,
   createUploadedScan,
+  getUserVMS,
 } from "../repositories/vms.repository.js";
 import { uploadVideoToCloudinary } from "../utils/cloudinaryUpload.js";
 import { generateThumbnailUrl } from "../utils/generateThumbnail.js";
@@ -311,4 +312,8 @@ export const saveRecordingService = async ({
     cameraName: cameraName || null,
   });
   return newScan;
+};
+
+export const getUserVMSService = async (userId) => {
+  return await getUserVMS(userId);
 };
