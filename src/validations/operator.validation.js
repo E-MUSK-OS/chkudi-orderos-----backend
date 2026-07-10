@@ -11,12 +11,12 @@ export const createOperatorSchema = z.object({
     .min(2, "Operator name must be at least 2 characters.")
     .max(50, "Operator name cannot exceed 50 characters."),
 
-  employeeCode: z
-    .string()
-    .trim()
-    .max(20, "Employee code cannot exceed 20 characters.")
-    .optional()
-    .or(z.literal("")),
+  // employeeCode: z
+  //   .string()
+  //   .trim()
+  //   .max(20, "Employee code cannot exceed 20 characters.")
+  //   .optional()
+  //   .or(z.literal("")),
 
   password: z
     .string()
@@ -36,12 +36,12 @@ export const updateOperatorSchema = z.object({
     .max(50, "Operator name cannot exceed 50 characters.")
     .optional(),
 
-  employeeCode: z
-    .string()
-    .trim()
-    .max(20, "Employee code cannot exceed 20 characters.")
-    .optional()
-    .or(z.literal("")),
+  // employeeCode: z
+  //   .string()
+  //   .trim()
+  //   .max(20, "Employee code cannot exceed 20 characters.")
+  //   .optional()
+  //   .or(z.literal("")),
 
   isActive: z.boolean().optional(),
 });

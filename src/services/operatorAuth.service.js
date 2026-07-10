@@ -111,6 +111,8 @@ export const operatorLogoutService = async (operatorId) => {
     },
     data: {
       isLoggedIn: false,
+      sessionId: null,
+      lastSeen: null,
     },
   });
 

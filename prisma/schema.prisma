@@ -137,7 +137,7 @@ model Operator {
 
   operatorName String
 
-  employeeCode String
+  employeeCode String @unique
 
   password String
 
@@ -156,6 +156,5 @@ model Operator {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([userId, employeeCode])
   @@index([userId])
 }

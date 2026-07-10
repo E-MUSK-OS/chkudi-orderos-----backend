@@ -8,29 +8,28 @@ import {
   findOperatorByEmployeeCode,
 } from "../repositories/operator.repository.js";
 import bcrypt from "bcrypt";
+import { generateEmployeeCode } from "../utils/generateEmployeeCode.js";
 
 export const createOperatorService = async (userId, data) => {
   const totalOperators = await countOperatorsByUserId(userId);
 
   if (totalOperators >= 5) {
-    throw new Error("Maximum 5 operators are allowed.");
+    throw new Error(
+      "Maximum limit reached. You can create up to 5 operators only.",
+    );
   }
 
-  const existingOperator = await findOperatorByEmployeeCode(
-    data.employeeCode,
-    userId,
-  );
-
-  if (existingOperator) {
-    throw new Error("Employee code already exists.");
-  }
+  const employeeCode = await generateEmployeeCode(data.operatorName);
 
   const hashedPassword = await bcrypt.hash(data.password, 10);
 
   return await createOperator({
     operatorName: data.operatorName,
-    employeeCode: data.employeeCode,
+
+    employeeCode,
+
     password: hashedPassword,
+
     userId,
   });
 };
