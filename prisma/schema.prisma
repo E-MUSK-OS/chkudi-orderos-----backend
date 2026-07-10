@@ -49,6 +49,7 @@ model User {
   updatedAt     DateTime       @updatedAt
   refreshTokens RefreshToken[]
   vmsscans      VMSScan[]
+  operators     Operator[]
 }
 
 enum Role {
@@ -125,4 +126,36 @@ enum ScanStatus {
   UPLOADING
   COMPLETED
   FAILED
+}
+
+// ==================================================================================
+// ====================================== Operator MODEL ============================
+// ==================================================================================
+
+model Operator {
+  id String @id @default(cuid())
+
+  operatorName String
+
+  employeeCode String
+
+  password String
+
+  isActive Boolean @default(true)
+
+  isLoggedIn Boolean @default(false)
+
+  sessionId String?
+
+  lastSeen DateTime?
+
+  userId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, employeeCode])
+  @@index([userId])
 }
