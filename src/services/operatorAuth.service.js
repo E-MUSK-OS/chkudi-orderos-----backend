@@ -7,26 +7,27 @@ import {
   updateOperatorHeartbeat,
 } from "../repositories/operatorAuth.repository.js";
 import { generateAccessToken } from "../utils/jwt.js";
+import { AppError } from "../utils/AppError.js";
 
 export const operatorLoginService = async (employeeCode, password) => {
   const operator = await findOperatorByEmployeeCode(employeeCode);
 
   if (!operator) {
-    throw new Error("Invalid employee code or password.");
+    throw new Error("Invalid employee code or password.", 401);
   }
 
   if (!operator.isActive) {
-    throw new Error("Operator account is inactive.");
+    throw new Error("Operator account is inactive.", 403);
   }
 
   if (!operator.user.isActive) {
-    throw new Error("Account is inactive.");
+    throw new Error("Account is inactive.", 403);
   }
 
   const isPasswordValid = await bcrypt.compare(password, operator.password);
 
   if (!isPasswordValid) {
-    throw new Error("Invalid employee code or password.");
+    throw new Error("Invalid employee code or password.", 401);
   }
 
   if (operator.sessionId && operator.lastSeen) {
@@ -34,11 +35,12 @@ export const operatorLoginService = async (employeeCode, password) => {
 
     const diff = now.getTime() - new Date(operator.lastSeen).getTime();
 
-    const diffMinutes = diff / 1000 / 60;
+    // const diffMinutes = diff / 1000 / 60;
+    const diffSeconds = diff / 1000;
 
     // Session Still Active
-    if (diffMinutes < 2) {
-      throw new Error("This operator is already busy.");
+    if (diffSeconds < 30) {
+      throw new Error("This operator is already busy.", 409);
     }
 
     // Session Expired

@@ -5,6 +5,7 @@ import compression from "compression";
 import cookieParser from "cookie-parser";
 
 import routes from "./routes/index.routes.js";
+import { errorHandler } from "./middleware/error.middleware.js";
 
 const app = express();
 
@@ -30,5 +31,6 @@ app.get("/", (req, res) => {
 });
 
 app.use("/api/v1", routes);
+app.use(errorHandler);
 
 export default app;
