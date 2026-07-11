@@ -1,6 +1,5 @@
 import prisma from "../config/prisma.js";
 
-
 export const createScan = async (data) => {
   return await prisma.vMSScan.create({
     data,
@@ -52,6 +51,29 @@ export const getAllScans = async ({ page = 1, limit = 20 }) => {
     orderBy: {
       createdAt: "desc",
     },
+
+    include: {
+      user: {
+        select: {
+          id: true,
+          fullName: true,
+          username: true,
+          email: true,
+          profileImage: true,
+          phone: true,
+        },
+      },
+
+      operator: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          employeeId: true,
+        },
+      },
+    },
   });
 };
 
@@ -73,6 +95,29 @@ export const getUserVMS = async (userId) => {
 
     orderBy: {
       createdAt: "desc",
+    },
+
+    include: {
+      user: {
+        select: {
+          id: true,
+          fullName: true,
+          username: true,
+          email: true,
+          profileImage: true,
+          phone: true,
+        },
+      },
+
+      operator: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          employeeId: true,
+        },
+      },
     },
   });
 };
