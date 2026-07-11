@@ -109,6 +109,8 @@ model VMSScan {
 
   operatorId String?
 
+  operator Operator? @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+
   cameraName String?
 
   uploadedAt DateTime?
@@ -152,6 +154,8 @@ model Operator {
   userId String
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  scans VMSScan[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
