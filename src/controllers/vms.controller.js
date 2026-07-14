@@ -46,6 +46,7 @@ export const uploadRecording = async (req, res, next) => {
       userId: body.userId,
       file: req.file,
       operatorId: body.operatorId,
+      accountId: body.accountId,
       cameraName: body.cameraName,
     });
 

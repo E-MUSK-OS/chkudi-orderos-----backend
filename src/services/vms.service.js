@@ -72,6 +72,7 @@ export const uploadRecordingService = async ({
   userId,
   file,
   operatorId,
+  accountId,
   cameraName,
 }) => {
   if (!file) {
@@ -92,6 +93,7 @@ export const uploadRecordingService = async ({
     userId,
     status: "PENDING",
     operatorId: operatorId || null,
+    accountId: accountId || null,
     cameraName: cameraName || null,
   });
 
@@ -117,6 +119,9 @@ export const uploadRecordingService = async ({
       publicId: cloudinaryResult.public_id,
       version: cloudinaryResult.version,
       uploadedAt: new Date(),
+      operatorId: operatorId || null,
+      accountId: accountId || null,
+      cameraName: cameraName || null,
     });
 
     return await getScanById(scan.id);
@@ -240,6 +245,7 @@ export const saveRecordingService = async ({
   publicId,
   version,
   operatorId,
+  accountId,
   cameraName,
 }) => {
   // Always create a new record for new uploads
@@ -263,6 +269,7 @@ export const saveRecordingService = async ({
       version,
       uploadedAt: new Date(),
       operatorId: operatorId || null,
+      accountId: accountId || null,
       cameraName: cameraName || null,
     });
     return newScan;
@@ -291,6 +298,7 @@ export const saveRecordingService = async ({
       version,
       uploadedAt: new Date(),
       operatorId: operatorId || null,
+      accountId: accountId || null,
       cameraName: cameraName || null,
     });
     return updatedScan;
@@ -309,6 +317,7 @@ export const saveRecordingService = async ({
     version,
     uploadedAt: new Date(),
     operatorId: operatorId || null,
+    accountId: accountId || null,
     cameraName: cameraName || null,
   });
   return newScan;

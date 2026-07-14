@@ -9,9 +9,11 @@ export const uploadVMSSchema = z.object({
 
   userId: z.string().trim().min(1, "User ID is required"),
 
-  //   operatorId: z.string().optional(),
+  operatorId: z.string().trim().optional(),
 
-  //   cameraName: z.string().optional(),
+  accountId: z.string().trim().optional(),
+
+  cameraName: z.string().trim().optional(),
 });
 
 export const getUserVMSchema = z.object({

@@ -77,6 +77,13 @@ export const getAllScans = async ({ page = 1, limit = 20 }) => {
           lastSeen: true,
         },
       },
+
+      account: {
+        select: {
+          id: true,
+          accountName: true,
+        },
+      },
     },
   });
 };
@@ -124,6 +131,13 @@ export const getUserVMS = async (userId) => {
           isLoggedIn: true,
           sessionId: true,
           lastSeen: true,
+        },
+      },
+
+      account: {
+        select: {
+          id: true,
+          accountName: true,
         },
       },
     },
