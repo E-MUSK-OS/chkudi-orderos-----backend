@@ -98,6 +98,7 @@ model VMSScan {
   version  Int?
 
   status String @default("PENDING")
+  packingScanStatus String @default("PENDING")
 
   fileName String?
   fileSize Int?

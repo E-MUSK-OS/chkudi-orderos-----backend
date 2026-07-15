@@ -8,6 +8,8 @@ import {
   deleteScan,
   createUploadedScan,
   getUserVMS,
+  updatePackingScanStatus,
+  getPackingScanByTrackingId,
 } from "../repositories/vms.repository.js";
 import { uploadVideoToCloudinary } from "../utils/cloudinaryUpload.js";
 import { generateThumbnailUrl } from "../utils/generateThumbnail.js";
@@ -325,4 +327,38 @@ export const saveRecordingService = async ({
 
 export const getUserVMSService = async (userId) => {
   return await getUserVMS(userId);
+};
+
+export const updatePackingScanStatusService = async ({
+  trackingId,
+  userId,
+}) => {
+  // Check tracking exists
+  const scan = await getPackingScanByTrackingId({
+    trackingId,
+    userId,
+  });
+
+  if (!scan) {
+    return {
+      success: false,
+      message: "Tracking ID not found.",
+    };
+  }
+
+  if (scan.packingScanStatus === "SCANNED") {
+    return {
+      success: false,
+      message: "Tracking ID already scanned.",
+    };
+  }
+
+  await updatePackingScanStatus({
+    id: scan.id,
+  });
+
+  return {
+    success: true,
+    message: "Tracking scanned successfully.",
+  };
 };

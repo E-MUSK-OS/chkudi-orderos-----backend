@@ -143,3 +143,43 @@ export const getUserVMS = async (userId) => {
     },
   });
 };
+
+export const updatePackingScanStatus = async ({ id }) => {
+  return await prisma.vMSScan.update({
+    where: {
+      id,
+    },
+    data: {
+      packingScanStatus: "SCANNED",
+    },
+  });
+};
+
+export const getPackingScanByTrackingId = async ({ trackingId, userId }) => {
+  return await prisma.vMSScan.findFirst({
+    where: {
+      trackingId,
+      userId,
+    },
+
+    orderBy: {
+      createdAt: "desc",
+    },
+
+    include: {
+      operator: {
+        select: {
+          id: true,
+          operatorName: true,
+        },
+      },
+
+      account: {
+        select: {
+          id: true,
+          accountName: true,
+        },
+      },
+    },
+  });
+};

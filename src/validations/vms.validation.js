@@ -19,3 +19,9 @@ export const uploadVMSSchema = z.object({
 export const getUserVMSchema = z.object({
   userId: z.string().trim().min(1, "User ID is required"),
 });
+
+export const updatePackingScanSchema = z.object({
+  trackingId: z.string().trim().min(1, "Tracking ID is required"),
+
+  userId: z.string().trim().min(1, "User ID is required"),
+});

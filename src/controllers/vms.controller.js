@@ -1,6 +1,7 @@
 import {
   uploadVMSSchema,
   getUserVMSchema,
+  updatePackingScanSchema,
 } from "../validations/vms.validation.js";
 
 import {
@@ -14,6 +15,7 @@ import {
   getUploadSignatureService,
   saveRecordingService,
   getUserVMSService,
+  updatePackingScanStatusService,
 } from "../services/vms.service.js";
 
 export const createScan = async (req, res, next) => {
@@ -179,6 +181,25 @@ export const getUserVMS = async (req, res, next) => {
       total: scans.length,
       data: scans,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updatePackingScanStatus = async (req, res, next) => {
+  try {
+    const body = updatePackingScanSchema.parse(req.body);
+
+    const result = await updatePackingScanStatusService({
+      trackingId: body.trackingId,
+      userId: body.userId,
+    });
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    return res.status(200).json(result);
   } catch (error) {
     next(error);
   }

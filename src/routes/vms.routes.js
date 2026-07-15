@@ -11,6 +11,7 @@ import {
   getUploadSignature,
   saveRecording,
   getUserVMS,
+  updatePackingScanStatus,
 } from "../controllers/vms.controller.js";
 import upload from "../middleware/upload.middleware.js";
 
@@ -21,6 +22,7 @@ router.post("/upload", upload.single("video"), uploadRecording);
 router.post("/signature", getUploadSignature);
 router.post("/save", saveRecording);
 router.post("/user", getUserVMS);
+router.patch("/packing-scan", updatePackingScanStatus);
 router.get("/", getAllScans);
 router.get("/tracking/:trackingId", getScanByTrackingId);
 router.get("/:id", getScanById);
