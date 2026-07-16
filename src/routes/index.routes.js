@@ -6,6 +6,7 @@ import vmsRoutes from "./vms.routes.js";
 import operatorRoutes from "./operator.routes.js";
 import operatorAuthRoutes from "./operatorAuth.routes.js";
 import accountRoutes from "./account.routes.js";
+import walletRoutes from "./wallet.routes.js";
 
 const router = Router();
 
@@ -15,5 +16,6 @@ router.use("/vms", vmsRoutes);
 router.use("/operators", operatorRoutes);
 router.use("/operator-auth", operatorAuthRoutes);
 router.use("/accounts", accountRoutes);
+router.use("/wallet", walletRoutes);
 
 export default router;

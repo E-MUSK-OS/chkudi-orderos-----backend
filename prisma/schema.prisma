@@ -51,6 +51,7 @@ model User {
   vmsscans      VMSScan[]
   operators     Operator[]
   accounts      Account[]
+  wallet        Wallet?
 }
 
 enum Role {
@@ -97,7 +98,7 @@ model VMSScan {
   publicId String?
   version  Int?
 
-  status String @default("PENDING")
+  status            String @default("PENDING")
   packingScanStatus String @default("PENDING")
 
   fileName String?
@@ -189,4 +190,46 @@ model Account {
   vmsscans  VMSScan[]
 
   @@index([userId])
+}
+
+model Wallet {
+  id String @id @default(cuid())
+
+  userId String @unique
+
+  points Int @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  transactions WalletTransaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WalletTransaction {
+  id String @id @default(cuid())
+
+  walletId String
+
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  type WalletTransactionType
+
+  points Int
+
+  balanceAfter Int
+
+  description String?
+
+  referenceId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([walletId])
+}
+
+enum WalletTransactionType {
+  CREDIT
+  DEBIT
 }

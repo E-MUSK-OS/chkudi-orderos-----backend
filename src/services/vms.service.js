@@ -16,6 +16,7 @@ import { generateThumbnailUrl } from "../utils/generateThumbnail.js";
 import { generateUploadSignature } from "../utils/cloudinarySignature.js";
 import { deleteVideoFromCloudinary } from "../utils/cloudinaryDelete.js";
 import cloudinary from "../config/cloudinary.js";
+import { deductWalletPoints } from "./wallet.service.js";
 
 export const createScanService = async (data) => {
   return await createScan(data);
@@ -125,6 +126,15 @@ export const uploadRecordingService = async ({
       accountId: accountId || null,
       cameraName: cameraName || null,
     });
+
+    await deductWalletPoints({
+      userId,
+      points: 2,
+      description: "VMS Scan Charge",
+      referenceId: trackingId,
+    });
+
+    return await getScanById(scan.id);
 
     return await getScanById(scan.id);
   } catch (error) {
@@ -273,6 +283,13 @@ export const saveRecordingService = async ({
       operatorId: operatorId || null,
       accountId: accountId || null,
       cameraName: cameraName || null,
+    });
+
+    await deductWalletPoints({
+      userId,
+      points: 2,
+      description: "VMS Scan Charge",
+      referenceId: trackingId,
     });
     return newScan;
   }
