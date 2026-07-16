@@ -127,12 +127,12 @@ export const uploadRecordingService = async ({
       cameraName: cameraName || null,
     });
 
-    await deductWalletPoints({
-      userId,
-      points: 2,
-      description: "VMS Scan Charge",
-      referenceId: trackingId,
-    });
+    // await deductWalletPoints({
+    //   userId,
+    //   points: 2,
+    //   description: "VMS Scan Charge",
+    //   referenceId: trackingId,
+    // });
 
     return await getScanById(scan.id);
 
@@ -285,12 +285,12 @@ export const saveRecordingService = async ({
       cameraName: cameraName || null,
     });
 
-    await deductWalletPoints({
-      userId,
-      points: 2,
-      description: "VMS Scan Charge",
-      referenceId: trackingId,
-    });
+    // await deductWalletPoints({
+    //   userId,
+    //   points: 2,
+    //   description: "VMS Scan Charge",
+    //   referenceId: trackingId,
+    // });
     return newScan;
   }
 
