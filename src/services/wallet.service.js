@@ -140,7 +140,10 @@ export const deductWalletPoints = async ({
 
   const balanceAfter = wallet.points - points;
 
-  await updateWalletPoints(wallet.id, balanceAfter);
+  await updateWalletPoints({
+    walletId: wallet.id,
+    points: balanceAfter,
+  });
 
   await createWalletTransaction({
     walletId: wallet.id,
