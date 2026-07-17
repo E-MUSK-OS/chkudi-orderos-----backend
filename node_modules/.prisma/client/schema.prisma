@@ -52,6 +52,8 @@ model User {
   operators     Operator[]
   accounts      Account[]
   wallet        Wallet?
+  tagLoops      TagLoop[]
+  tags          Tag[]
 }
 
 enum Role {
@@ -232,4 +234,69 @@ model WalletTransaction {
 enum WalletTransactionType {
   CREDIT
   DEBIT
+}
+
+// ==================================================================================
+// ====================================== TAG LOOP MODEL ============================
+// ==================================================================================
+
+model TagLoop {
+  id String @id @default(cuid())
+
+  prefix String
+
+  startTag String
+  endTag   String
+
+  startNumber Int
+  endNumber   Int
+
+  total Int
+
+  userId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tags Tag[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([prefix])
+}
+
+// ==================================================================================
+// ========================================= TAG MODEL ==============================
+// ==================================================================================
+
+model Tag {
+  id String @id @default(cuid())
+
+  tagNumber String
+
+  status TagStatus @default(AVAILABLE)
+
+  loopId String
+
+  loop TagLoop @relation(fields: [loopId], references: [id], onDelete: Cascade)
+
+  userId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  orderItemId String?
+
+  usedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, tagNumber])
+  @@index([status])
+  @@index([loopId])
+}
+
+enum TagStatus {
+  AVAILABLE
+  USED
 }
