@@ -102,11 +102,16 @@ export const getTagLoopsService = async (userId) => {
 
     const used = loop.tags.filter((tag) => tag.status === "USED").length;
 
+    const nextAvailableTag = loop.tags.find(
+      (tag) => tag.status === "AVAILABLE",
+    );
+
     return {
       id: loop.id,
       prefix: loop.prefix,
       startTag: loop.startTag,
       endTag: loop.endTag,
+      nextAvailableTag: nextAvailableTag?.tagNumber || null,
       total: loop.total,
       available,
       used,

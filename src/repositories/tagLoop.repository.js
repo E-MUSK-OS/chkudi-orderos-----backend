@@ -75,7 +75,11 @@ export const getTagLoops = async (userId) => {
     include: {
       tags: {
         select: {
+          tagNumber: true,
           status: true,
+        },
+        orderBy: {
+          tagNumber: "asc",
         },
       },
     },
