@@ -6,6 +6,7 @@ import {
   createTagLoopService,
   getTagLoopsService,
   getTagLoopDashboardService,
+  exportTagLoopService,
 } from "../services/tagLoop.service.js";
 
 // ========================================
@@ -75,6 +76,35 @@ export const getTagLoopDashboard = async (req, res) => {
       message: "Dashboard fetched successfully.",
       data: dashboard,
     });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// ========================================
+// Export Tag Loop
+// ========================================
+
+export const exportTagLoop = async (req, res) => {
+  try {
+    const { workbook, fileName } = await exportTagLoopService({
+      userId: req.user.id,
+      loopId: req.params.id,
+    });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+
+    await workbook.xlsx.write(res);
+
+    res.end();
   } catch (error) {
     return res.status(400).json({
       success: false,

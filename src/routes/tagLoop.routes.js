@@ -6,6 +6,7 @@ import {
   createTagLoop,
   getTagLoops,
   getTagLoopDashboard,
+  exportTagLoop,
 } from "../controllers/tagLoop.controller.js";
 
 const router = Router();
@@ -16,6 +17,7 @@ const router = Router();
 
 router.post("/", verifyJWT, createTagLoop);
 router.get("/dashboard", verifyJWT, getTagLoopDashboard);
+router.get("/:id/export", verifyJWT, exportTagLoop);
 
 router.get("/", verifyJWT, getTagLoops);
 

@@ -9,6 +9,7 @@ import {
   countTags,
   countAvailableTags,
   countUsedTags,
+  getTagLoopWithTags,
 } from "../repositories/tagLoop.repository.js";
 
 import {
@@ -16,6 +17,7 @@ import {
   generateEndTag,
   generateTags,
 } from "../utils/tagLoop.util.js";
+import ExcelJS from "exceljs";
 
 // =====================================
 // Create Tag Loop
@@ -137,5 +139,95 @@ export const getTagLoopDashboardService = async (userId) => {
     totalTags,
     availableTags,
     usedTags,
+  };
+};
+
+export const exportTagLoopService = async ({ userId, loopId }) => {
+  const loop = await getTagLoopWithTags({
+    userId,
+    loopId,
+  });
+
+  if (!loop) {
+    throw new Error("Tag Loop not found.");
+  }
+
+  const workbook = new ExcelJS.Workbook();
+
+  const sheet = workbook.addWorksheet("Tags");
+
+  sheet.columns = [
+    {
+      header: "Tag Number",
+      key: "tagNumber",
+      width: 25,
+    },
+    {
+      header: "Status",
+      key: "status",
+      width: 20,
+    },
+    {
+      header: "orderItemId(SKU)",
+      key: "orderItemId",
+      width: 20,
+    },
+    {
+      header: "Order ID",
+      key: "orderId",
+      width: 25,
+    },
+    {
+      header: "Used At",
+      key: "usedAt",
+      width: 25,
+    },
+  ];
+
+  const headerRow = sheet.getRow(1);
+
+  headerRow.font = {
+    bold: true,
+    color: { argb: "FFFFFFFF" },
+  };
+
+  headerRow.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "0A0E1A" },
+  };
+
+  headerRow.alignment = {
+    vertical: "middle",
+    horizontal: "center",
+  };
+
+  // 3. Freeze Header (Optional)
+  sheet.views = [
+    {
+      state: "frozen",
+      ySplit: 1,
+    },
+  ];
+
+  // 4. Auto Filter (Optional)
+  sheet.autoFilter = {
+    from: "A1",
+    to: "E1",
+  };
+
+  loop.tags.forEach((tag) => {
+    sheet.addRow({
+      tagNumber: tag.tagNumber,
+      status: tag.status,
+      orderItemId: tag.orderItemId ?? "-",
+      orderId: tag.orderId ?? "-",
+      usedAt: tag.usedAt ? new Date(tag.usedAt).toLocaleString("en-IN") : "-",
+    });
+  });
+
+  return {
+    workbook,
+    fileName: `${loop.startTag}-${loop.endTag}.xlsx`,
   };
 };

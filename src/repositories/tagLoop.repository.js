@@ -140,4 +140,24 @@ export const countUsedTags = async (userId) => {
   });
 };
 
+// =====================================
+// Get Loop With Tags
+// =====================================
+
+export const getTagLoopWithTags = async ({ userId, loopId }) => {
+  return prisma.tagLoop.findFirst({
+    where: {
+      id: loopId,
+      userId,
+    },
+    include: {
+      tags: {
+        orderBy: {
+          tagNumber: "asc",
+        },
+      },
+    },
+  });
+};
+
 export { prisma };
