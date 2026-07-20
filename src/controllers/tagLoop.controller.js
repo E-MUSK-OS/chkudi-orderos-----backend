@@ -7,6 +7,7 @@ import {
   getTagLoopsService,
   getTagLoopDashboardService,
   exportTagLoopService,
+  deleteTagLoopService,
 } from "../services/tagLoop.service.js";
 
 // ========================================
@@ -105,6 +106,29 @@ export const exportTagLoop = async (req, res) => {
     await workbook.xlsx.write(res);
 
     res.end();
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// ========================================
+// Delete Tag Loop
+// ========================================
+
+export const deleteTagLoop = async (req, res) => {
+  try {
+    await deleteTagLoopService({
+      userId: req.user.id,
+      loopId: req.params.id,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Tag Loop deleted successfully.",
+    });
   } catch (error) {
     return res.status(400).json({
       success: false,

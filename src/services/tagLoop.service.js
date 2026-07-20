@@ -12,6 +12,8 @@ import {
   countUsedTags,
   getTagLoopWithTags,
   updateTagLoopNotificationFlags,
+  getTagLoopById,
+  deleteTagLoop,
 } from "../repositories/tagLoop.repository.js";
 
 import {
@@ -329,4 +331,28 @@ export const exportTagLoopService = async ({ userId, loopId }) => {
     workbook,
     fileName: `${loop.startTag}-${loop.endTag}.xlsx`,
   };
+};
+
+// =====================================
+// Delete Tag Loop
+// =====================================
+
+export const deleteTagLoopService = async ({ userId, loopId }) => {
+  const loop = await getTagLoopById({
+    userId,
+    loopId,
+  });
+
+  if (!loop) {
+    throw new Error("Tag Loop not found.");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await deleteTagLoop({
+      tx,
+      loopId,
+    });
+  });
+
+  return;
 };

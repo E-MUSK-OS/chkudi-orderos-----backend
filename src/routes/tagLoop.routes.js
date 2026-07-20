@@ -7,6 +7,7 @@ import {
   getTagLoops,
   getTagLoopDashboard,
   exportTagLoop,
+  deleteTagLoop,
 } from "../controllers/tagLoop.controller.js";
 
 const router = Router();
@@ -18,6 +19,7 @@ const router = Router();
 router.post("/", verifyJWT, createTagLoop);
 router.get("/dashboard", verifyJWT, getTagLoopDashboard);
 router.get("/:id/export", verifyJWT, exportTagLoop);
+router.delete("/:id", verifyJWT, deleteTagLoop);
 
 router.get("/", verifyJWT, getTagLoops);
 

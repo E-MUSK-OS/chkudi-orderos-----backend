@@ -169,4 +169,29 @@ export const updateTagLoopNotificationFlags = async ({ loopId, data }) => {
   });
 };
 
+// =====================================
+// Get Tag Loop By Id
+// =====================================
+
+export const getTagLoopById = async ({ userId, loopId }) => {
+  return prisma.tagLoop.findFirst({
+    where: {
+      id: loopId,
+      userId,
+    },
+  });
+};
+
+// =====================================
+// Delete Tag Loop
+// =====================================
+
+export const deleteTagLoop = async ({ tx, loopId }) => {
+  return tx.tagLoop.delete({
+    where: {
+      id: loopId,
+    },
+  });
+};
+
 export { prisma };
