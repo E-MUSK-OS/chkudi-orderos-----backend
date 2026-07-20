@@ -1,4 +1,5 @@
 import { prisma } from "../repositories/tagLoop.repository.js";
+import { createNotificationService } from "./notification.service.js";
 
 import {
   findOverlappingTagLoop,
@@ -10,6 +11,7 @@ import {
   countAvailableTags,
   countUsedTags,
   getTagLoopWithTags,
+  updateTagLoopNotificationFlags,
 } from "../repositories/tagLoop.repository.js";
 
 import {
@@ -94,10 +96,95 @@ export const createTagLoopService = async ({ userId, startTag, total }) => {
   });
 };
 
+const notificationConfig = {
+  50: {
+    flag: "notify50",
+    title: "Only 50 Tags Remaining",
+    priority: "MEDIUM",
+  },
+  30: {
+    flag: "notify30",
+    title: "Only 30 Tags Remaining",
+    priority: "MEDIUM",
+  },
+  10: {
+    flag: "notify10",
+    title: "Only 10 Tags Remaining",
+    priority: "HIGH",
+  },
+  0: {
+    flag: "notify0",
+    title: "Tag Loop Exhausted",
+    priority: "CRITICAL",
+  },
+};
+
+const checkTagLoopNotification = async ({ userId, loop, available }) => {
+  const config = notificationConfig[available];
+
+  if (!config) {
+    return;
+  }
+
+  if (loop[config.flag]) {
+    return;
+  }
+
+  await createNotificationService({
+    userId,
+    title: config.title,
+    message:
+      available === 0
+        ? `${loop.startTag} has no tags remaining.`
+        : `${loop.startTag} has only ${available} tags remaining.`,
+    type: "TAG_LOOP",
+    priority: config.priority,
+    entityId: loop.id,
+    entityType: "TAG_LOOP",
+  });
+
+  await updateTagLoopNotificationFlags({
+    loopId: loop.id,
+    data: {
+      [config.flag]: true,
+    },
+  });
+};
+
+// export const getTagLoopsService = async (userId) => {
+//   const loops = await getTagLoops(userId);
+
+//   return loops.map((loop) => {
+//     const available = loop.tags.filter(
+//       (tag) => tag.status === "AVAILABLE",
+//     ).length;
+
+//     const used = loop.tags.filter((tag) => tag.status === "USED").length;
+
+//     const nextAvailableTag = loop.tags.find(
+//       (tag) => tag.status === "AVAILABLE",
+//     );
+
+//     return {
+//       id: loop.id,
+//       prefix: loop.prefix,
+//       startTag: loop.startTag,
+//       endTag: loop.endTag,
+//       nextAvailableTag: nextAvailableTag?.tagNumber || null,
+//       total: loop.total,
+//       available,
+//       used,
+//       createdAt: loop.createdAt,
+//     };
+//   });
+// };
+
 export const getTagLoopsService = async (userId) => {
   const loops = await getTagLoops(userId);
 
-  return loops.map((loop) => {
+  const result = [];
+
+  for (const loop of loops) {
     const available = loop.tags.filter(
       (tag) => tag.status === "AVAILABLE",
     ).length;
@@ -108,7 +195,17 @@ export const getTagLoopsService = async (userId) => {
       (tag) => tag.status === "AVAILABLE",
     );
 
-    return {
+    // =====================================
+    // Check Notification (Temporary)
+    // =====================================
+
+    await checkTagLoopNotification({
+      userId,
+      loop,
+      available,
+    });
+
+    result.push({
       id: loop.id,
       prefix: loop.prefix,
       startTag: loop.startTag,
@@ -118,8 +215,10 @@ export const getTagLoopsService = async (userId) => {
       available,
       used,
       createdAt: loop.createdAt,
-    };
-  });
+    });
+  }
+
+  return result;
 };
 
 // =====================================

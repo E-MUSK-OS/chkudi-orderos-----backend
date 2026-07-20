@@ -8,6 +8,7 @@ import operatorAuthRoutes from "./operatorAuth.routes.js";
 import accountRoutes from "./account.routes.js";
 import walletRoutes from "./wallet.routes.js";
 import tagLoopRoutes from "./tagLoop.routes.js";
+import notificationRoutes from "./notification.routes.js";
 
 const router = Router();
 
@@ -19,5 +20,6 @@ router.use("/operator-auth", operatorAuthRoutes);
 router.use("/accounts", accountRoutes);
 router.use("/wallet", walletRoutes);
 router.use("/tag-loops", tagLoopRoutes);
+router.use("/notifications", notificationRoutes);
 
 export default router;

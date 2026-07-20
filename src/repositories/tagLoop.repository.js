@@ -160,4 +160,13 @@ export const getTagLoopWithTags = async ({ userId, loopId }) => {
   });
 };
 
+export const updateTagLoopNotificationFlags = async ({ loopId, data }) => {
+  return prisma.tagLoop.update({
+    where: {
+      id: loopId,
+    },
+    data,
+  });
+};
+
 export { prisma };
