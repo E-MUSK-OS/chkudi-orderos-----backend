@@ -9,19 +9,18 @@ import {
 import { generateAccessToken } from "../utils/jwt.js";
 import { AppError } from "../utils/AppError.js";
 
-export const operatorLoginService = async (employeeCode, password) => {
-  const operator = await findOperatorByEmployeeCode(employeeCode);
+export const operatorLoginService = async (userId, employeeCode, password) => {
+  const operator = await findOperatorByEmployeeCode(userId, employeeCode);
 
   if (!operator) {
-    throw new Error("Invalid employee code or password.", 401);
+    throw new AppError("Invalid employee code or password.", 401);
   }
-
   if (!operator.isActive) {
-    throw new Error("Operator account is inactive.", 403);
+    throw new AppError("Operator account is inactive.", 403);
   }
 
   if (!operator.user.isActive) {
-    throw new Error("Account is inactive.", 403);
+    throw new AppError("Account is inactive.", 403);
   }
 
   const isPasswordValid = await bcrypt.compare(password, operator.password);
