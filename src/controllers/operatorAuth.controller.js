@@ -10,7 +10,7 @@ export const operatorLogin = async (req, res, next) => {
   try {
     const { employeeCode, password } = operatorLoginSchema.parse(req.body);
 
-    const result = await operatorLoginService(employeeCode, password);
+    const result = await operatorLoginService(req.user.id, employeeCode, password);
 
     return res.status(200).json({
       success: true,
