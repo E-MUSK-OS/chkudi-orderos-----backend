@@ -1,9 +1,8 @@
 import prisma from "../config/prisma.js";
 
-export const findOperatorByEmployeeCode = async (userId, employeeCode) => {
-  return prisma.operator.findFirst({
+export const findOperatorByEmployeeCode = async (employeeCode) => {
+  return await prisma.operator.findUnique({
     where: {
-      userId,
       employeeCode,
     },
     include: {
@@ -39,7 +38,10 @@ export const findOperatorById = async (id) => {
   });
 };
 
-export const updateOperatorHeartbeat = async (operatorId, sessionId) => {
+export const updateOperatorHeartbeat = async (
+  operatorId,
+  sessionId
+) => {
   return await prisma.operator.updateMany({
     where: {
       id: operatorId,
