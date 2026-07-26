@@ -10,6 +10,8 @@ import walletRoutes from "./wallet.routes.js";
 import tagLoopRoutes from "./tagLoop.routes.js";
 import notificationRoutes from "./notification.routes.js";
 import warehouseRoutes from "./warehouse.routes.js";
+import productRoutes from "./product.routes.js";
+import productVariantRoutes from "./productVariant.routes.js";
 
 const router = Router();
 
@@ -23,5 +25,7 @@ router.use("/wallet", walletRoutes);
 router.use("/tag-loops", tagLoopRoutes);
 router.use("/notifications", notificationRoutes);
 router.use("/warehouses", warehouseRoutes);
+router.use("/products", productRoutes);
+router.use("/product-variants", productVariantRoutes);
 
 export default router;

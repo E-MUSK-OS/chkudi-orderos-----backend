@@ -56,6 +56,7 @@ model User {
   tags          Tag[]
   notifications Notification[]
   warehouses    Warehouse[]
+  products      Product[]
 }
 
 enum Role {
@@ -437,4 +438,159 @@ model Warehouse {
   @@unique([userId, warehouseCode])
   @@unique([userId, warehouseName])
   @@index([userId])
+}
+
+// ==================================================================================
+// ====================================== PRODUCT MODEL =============================
+// ==================================================================================
+
+model Product {
+  id String @id @default(cuid())
+
+  // ======================================================
+  // Basic
+  // ======================================================
+
+  productName String
+  masterSku   String
+
+  brand       String?
+  category    String
+  subCategory String?
+
+  description String?
+
+  // ======================================================
+  // Status
+  // ======================================================
+
+  isActive Boolean @default(true)
+
+  // ======================================================
+  // Relations
+  // ======================================================
+
+  userId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  attributes ProductAttribute[]
+
+  variants ProductVariant[]
+
+  // ======================================================
+  // System
+  // ======================================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, masterSku])
+  @@unique([userId, productName])
+  @@index([userId])
+  @@index([category])
+  @@index([brand])
+}
+
+model ProductAttribute {
+  id String @id @default(cuid())
+
+  // ======================================================
+  // Attribute
+  // ======================================================
+
+  attributeName String
+
+  // ======================================================
+  // Relation
+  // ======================================================
+
+  productId String
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  variantAttributes ProductVariantAttribute[]
+
+  // ======================================================
+  // System
+  // ======================================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, attributeName])
+  @@index([productId])
+}
+
+// ==================================================================================
+// =============================== PRODUCT VARIANT MODEL ============================
+// ==================================================================================
+
+model ProductVariant {
+  id String @id @default(cuid())
+
+  // ======================================================
+  // Variant
+  // ======================================================
+
+  variantSku String
+
+  isActive Boolean @default(true)
+
+  // ======================================================
+  // Relation
+  // ======================================================
+
+  productId String
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  attributes ProductVariantAttribute[]
+
+  // ======================================================
+  // System
+  // ======================================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, variantSku])
+  @@index([productId])
+}
+
+// ==================================================================================
+// ========================= PRODUCT VARIANT ATTRIBUTE MODEL ========================
+// ==================================================================================
+
+model ProductVariantAttribute {
+  id String @id @default(cuid())
+
+  // ======================================================
+  // Value
+  // ======================================================
+
+  attributeValue String
+
+  // ======================================================
+  // Relations
+  // ======================================================
+
+  productVariantId String
+
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
+
+  productAttributeId String
+
+  productAttribute ProductAttribute @relation(fields: [productAttributeId], references: [id], onDelete: Cascade)
+
+  // ======================================================
+  // System
+  // ======================================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productVariantId, productAttributeId])
+  @@index([productVariantId])
+  @@index([productAttributeId])
 }
