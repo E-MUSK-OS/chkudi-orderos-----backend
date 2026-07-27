@@ -45,18 +45,19 @@ model User {
   isVerified Boolean @default(false)
   isActive   Boolean @default(true)
 
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  refreshTokens RefreshToken[]
-  vmsscans      VMSScan[]
-  operators     Operator[]
-  accounts      Account[]
-  wallet        Wallet?
-  tagLoops      TagLoop[]
-  tags          Tag[]
-  notifications Notification[]
-  warehouses    Warehouse[]
-  products      Product[]
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  refreshTokens      RefreshToken[]
+  vmsscans           VMSScan[]
+  operators          Operator[]
+  accounts           Account[]
+  wallet             Wallet?
+  tagLoops           TagLoop[]
+  tags               Tag[]
+  notifications      Notification[]
+  warehouses         Warehouse[]
+  products           Product[]
+  productInventories ProductInventory[]
 }
 
 enum Role {
@@ -551,8 +552,9 @@ model ProductVariant {
   // System
   // ======================================================
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  inventory ProductInventory?
 
   @@unique([productId, variantSku])
   @@index([productId])
@@ -593,4 +595,38 @@ model ProductVariantAttribute {
   @@unique([productVariantId, productAttributeId])
   @@index([productVariantId])
   @@index([productAttributeId])
+}
+
+model ProductInventory {
+  id String @id @default(cuid())
+
+  // ======================================================
+  // Relations
+  // ======================================================
+
+  productVariantId String @unique
+  userId           String
+
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // ======================================================
+  // Stock
+  // ======================================================
+
+  availableStock Int @default(0)
+  reservedStock  Int @default(0)
+  damagedStock   Int @default(0)
+  incomingStock  Int @default(0)
+  reorderLevel   Int @default(10)
+
+  // ======================================================
+  // System
+  // ======================================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([availableStock])
 }

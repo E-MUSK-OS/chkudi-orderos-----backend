@@ -12,6 +12,7 @@ import notificationRoutes from "./notification.routes.js";
 import warehouseRoutes from "./warehouse.routes.js";
 import productRoutes from "./product.routes.js";
 import productVariantRoutes from "./productVariant.routes.js";
+import inventoryRoutes from "./inventory.routes.js";
 
 const router = Router();
 
@@ -27,5 +28,6 @@ router.use("/notifications", notificationRoutes);
 router.use("/warehouses", warehouseRoutes);
 router.use("/products", productRoutes);
 router.use("/product-variants", productVariantRoutes);
+router.use("/inventories", inventoryRoutes);
 
 export default router;

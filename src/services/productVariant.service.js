@@ -13,6 +13,8 @@ import {
 } from "../repositories/productVariant.repository.js";
 
 import { getProductById } from "../repositories/product.repository.js";
+import prisma from "../config/prisma.js";
+import { createInventoryService } from "./inventory.service.js";
 
 // ======================================================
 // Create Product Variant
@@ -43,9 +45,18 @@ export const createProductVariantService = async (userId, data) => {
     throw new Error("Variant SKU already exists.");
   }
 
-  return await createProductVariant({
-    ...data,
-    isActive: data.isActive ?? true,
+  return await prisma.$transaction(async (tx) => {
+    const variant = await createProductVariant(
+      {
+        ...data,
+        isActive: data.isActive ?? true,
+      },
+      tx,
+    );
+
+    await createInventoryService(variant.id, userId, tx);
+
+    return variant;
   });
 };
 
