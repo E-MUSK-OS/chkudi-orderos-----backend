@@ -22,16 +22,16 @@ export const createNotificationService = async ({
   entityId,
   entityType,
 }) => {
-  const exists = await findNotification({
-    userId,
-    type,
-    entityId,
-    title,
-  });
+  // const exists = await findNotification({
+  //   userId,
+  //   type,
+  //   entityId,
+  //   title,
+  // });
 
-  if (exists) {
-    return exists;
-  }
+  // if (exists) {
+  //   return exists;
+  // }
 
   return createNotification({
     userId,

@@ -358,6 +358,7 @@ enum NotificationType {
   ORDER
   WALLET
   VMS
+  INVENTORY
   SYSTEM
 }
 
@@ -619,6 +620,17 @@ model ProductInventory {
   damagedStock   Int @default(0)
   incomingStock  Int @default(0)
   reorderLevel   Int @default(10)
+
+  // ===============================
+  // Notification Flags
+  // ===============================
+
+  // lowStock25Notified Boolean @default(false)
+
+  // lowStock10Notified Boolean @default(false)
+
+  // outOfStockNotified Boolean @default(false)
+  lastNotificationLevel Int?
 
   // ======================================================
   // System

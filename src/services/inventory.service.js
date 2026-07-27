@@ -10,6 +10,7 @@ import {
 } from "../repositories/inventory.repository.js";
 import { AppError } from "../utils/AppError.js";
 import prisma from "../config/prisma.js";
+import { checkInventoryNotifications } from "./inventoryNotification.service.js";
 
 export const getInventoriesService = async ({
   userId,
@@ -171,6 +172,32 @@ export const adjustInventoryService = async (id, userId, data) => {
       },
       tx,
     );
+
+    const inventoryWithRelations = await tx.productInventory.findUnique({
+      where: {
+        id: updatedInventory.id,
+      },
+      include: {
+        productVariant: {
+          include: {
+            product: true,
+          },
+        },
+      },
+    });
+
+    const notificationFlags = await checkInventoryNotifications(
+      inventoryWithRelations,
+    );
+
+    if (notificationFlags) {
+      await tx.productInventory.update({
+        where: {
+          id: updatedInventory.id,
+        },
+        data: notificationFlags,
+      });
+    }
 
     // ======================================================
     // Future Inventory History
@@ -596,7 +623,7 @@ export const importInventoryService = async (userId, file) => {
 
       // Update Inventory
 
-      await tx.productInventory.update({
+      const updatedInventory = await tx.productInventory.update({
         where: {
           id: inventory.id,
         },
@@ -608,6 +635,32 @@ export const importInventoryService = async (userId, file) => {
           reorderLevel: row.reorderLevel,
         },
       });
+
+      const inventoryWithRelations = await tx.productInventory.findUnique({
+        where: {
+          id: updatedInventory.id,
+        },
+        include: {
+          productVariant: {
+            include: {
+              product: true,
+            },
+          },
+        },
+      });
+
+      const notificationFlags = await checkInventoryNotifications(
+        inventoryWithRelations,
+      );
+
+      if (notificationFlags) {
+        await tx.productInventory.update({
+          where: {
+            id: updatedInventory.id,
+          },
+          data: notificationFlags,
+        });
+      }
 
       updated++;
     }
