@@ -13,6 +13,7 @@ import warehouseRoutes from "./warehouse.routes.js";
 import productRoutes from "./product.routes.js";
 import productVariantRoutes from "./productVariant.routes.js";
 import inventoryRoutes from "./inventory.routes.js";
+import transferRoutes from "./transfer.routes.js";
 
 const router = Router();
 
@@ -29,5 +30,6 @@ router.use("/warehouses", warehouseRoutes);
 router.use("/products", productRoutes);
 router.use("/product-variants", productVariantRoutes);
 router.use("/inventories", inventoryRoutes);
+router.use("/stock-transfers", transferRoutes);
 
 export default router;
