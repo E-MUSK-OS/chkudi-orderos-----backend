@@ -29,37 +29,69 @@ export const findProductVariantBySku = async (productId, variantSku) => {
 // Create Product Variant
 // ======================================================
 
-export const createProductVariant = async (data) => {
+// export const createProductVariant = async (data, tx = prisma) => {
+//   const { attributes = [], ...variantData } = data;
+
+//   return await prisma.$transaction(async (tx) => {
+//     const variant = await tx.productVariant.create({
+//       data: variantData,
+//     });
+
+//     if (attributes.length > 0) {
+//       await tx.productVariantAttribute.createMany({
+//         data: attributes.map((attribute) => ({
+//           productVariantId: variant.id,
+//           productAttributeId: attribute.productAttributeId,
+//           attributeValue: attribute.attributeValue,
+//         })),
+//       });
+//     }
+
+//     return await tx.productVariant.findUnique({
+//       where: {
+//         id: variant.id,
+//       },
+//       include: {
+//         product: true,
+//         attributes: {
+//           include: {
+//             productAttribute: true,
+//           },
+//         },
+//       },
+//     });
+//   });
+// };
+
+export const createProductVariant = async (data, tx = prisma) => {
   const { attributes = [], ...variantData } = data;
 
-  return await prisma.$transaction(async (tx) => {
-    const variant = await tx.productVariant.create({
-      data: variantData,
+  const variant = await tx.productVariant.create({
+    data: variantData,
+  });
+
+  if (attributes.length > 0) {
+    await tx.productVariantAttribute.createMany({
+      data: attributes.map((attribute) => ({
+        productVariantId: variant.id,
+        productAttributeId: attribute.productAttributeId,
+        attributeValue: attribute.attributeValue,
+      })),
     });
+  }
 
-    if (attributes.length > 0) {
-      await tx.productVariantAttribute.createMany({
-        data: attributes.map((attribute) => ({
-          productVariantId: variant.id,
-          productAttributeId: attribute.productAttributeId,
-          attributeValue: attribute.attributeValue,
-        })),
-      });
-    }
-
-    return await tx.productVariant.findUnique({
-      where: {
-        id: variant.id,
-      },
-      include: {
-        product: true,
-        attributes: {
-          include: {
-            productAttribute: true,
-          },
+  return await tx.productVariant.findUnique({
+    where: {
+      id: variant.id,
+    },
+    include: {
+      product: true,
+      attributes: {
+        include: {
+          productAttribute: true,
         },
       },
-    });
+    },
   });
 };
 
@@ -287,4 +319,17 @@ export const updateVariantsStatusByProduct = async (productId, isActive) => {
   console.log(result);
 
   return result;
+};
+
+export const getAllVariantIds = async (userId, tx = prisma) => {
+  return await tx.productVariant.findMany({
+    where: {
+      product: {
+        userId,
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
 };

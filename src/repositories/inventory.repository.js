@@ -4,7 +4,28 @@ import prisma from "../config/prisma.js";
 // ============================== COMMON INCLUDE ====================================
 // ==================================================================================
 
+// const inventoryInclude = {
+//   productVariant: {
+//     include: {
+//       product: true,
+//       attributes: {
+//         include: {
+//           productAttribute: true,
+//         },
+//       },
+//     },
+//   },
+// };
+
 const inventoryInclude = {
+  warehouse: {
+    select: {
+      id: true,
+      warehouseName: true,
+      warehouseCode: true,
+    },
+  },
+
   productVariant: {
     include: {
       product: true,
@@ -44,13 +65,29 @@ export const getInventoryById = async (id, tx = prisma) => {
 // ======================= GET INVENTORY BY VARIANT ID ==============================
 // ==================================================================================
 
+// export const getInventoryByVariantId = async (
+//   productVariantId,
+//   tx = prisma,
+// ) => {
+//   return tx.productInventory.findUnique({
+//     where: {
+//       productVariantId,
+//     },
+//     include: inventoryInclude,
+//   });
+// };
+
 export const getInventoryByVariantId = async (
   productVariantId,
+  warehouseId,
   tx = prisma,
 ) => {
   return tx.productInventory.findUnique({
     where: {
-      productVariantId,
+      productVariantId_warehouseId: {
+        productVariantId,
+        warehouseId,
+      },
     },
     include: inventoryInclude,
   });
@@ -97,6 +134,8 @@ export const deleteInventory = async (id, tx = prisma) => {
 export const getInventories = async ({
   userId,
 
+  warehouseId,
+
   page = 1,
 
   limit = 10,
@@ -111,9 +150,17 @@ export const getInventories = async ({
 
   sortOrder = "desc",
 }) => {
+  // const where = {
+  //   userId,
+  // };
+
   const where = {
     userId,
   };
+
+  if (warehouseId) {
+    where.warehouseId = warehouseId;
+  }
 
   // ======================================================
   // Search

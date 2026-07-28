@@ -437,6 +437,8 @@ model Warehouse {
 
   updatedAt DateTime @updatedAt
 
+  inventories ProductInventory[]
+
   @@unique([userId, warehouseCode])
   @@unique([userId, warehouseName])
   @@index([userId])
@@ -553,9 +555,10 @@ model ProductVariant {
   // System
   // ======================================================
 
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
-  inventory ProductInventory?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  // inventory ProductInventory?
+  inventories ProductInventory[]
 
   @@unique([productId, variantSku])
   @@index([productId])
@@ -605,9 +608,12 @@ model ProductInventory {
   // Relations
   // ======================================================
 
-  productVariantId String @unique
+  // productVariantId String @unique
+  productVariantId String
+  warehouseId      String
   userId           String
 
+  warehouse      Warehouse      @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
   productVariant ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
   user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -636,9 +642,12 @@ model ProductInventory {
   // System
   // ======================================================
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  // warehouse   Warehouse? @relation(fields: [warehouseId], references: [id])
+  // warehouseId String?
 
+  @@unique([productVariantId, warehouseId])
   @@index([userId])
   @@index([availableStock])
 }

@@ -11,6 +11,9 @@ import {
   updateWarehouseStatus,
   getWarehouseStats,
 } from "../repositories/warehouse.repository.js";
+import prisma from "../config/prisma.js";
+
+import { getAllVariantIds } from "../repositories/productVariant.repository.js";
 
 // ======================================================
 // Create Warehouse
@@ -51,11 +54,41 @@ export const createWarehouseService = async (userId, data) => {
     await clearDefaultWarehouse(userId);
   }
 
-  return await createWarehouse({
-    ...data,
-    isDefault: data.isDefault ?? false,
-    isActive: data.isActive ?? true,
-    userId,
+  // return await createWarehouse({
+  //   ...data,
+  //   isDefault: data.isDefault ?? false,
+  //   isActive: data.isActive ?? true,
+  //   userId,
+  // });
+  return await prisma.$transaction(async (tx) => {
+    const variants = await getAllVariantIds(userId, tx);
+    const warehouse = await createWarehouse(
+      {
+        ...data,
+        isDefault: data.isDefault ?? false,
+        isActive: data.isActive ?? true,
+        userId,
+      },
+      tx,
+    );
+
+    if (variants.length > 0) {
+      await tx.productInventory.createMany({
+        data: variants.map((variant) => ({
+          productVariantId: variant.id,
+          warehouseId: warehouse.id,
+          userId,
+
+          availableStock: 0,
+          reservedStock: 0,
+          incomingStock: 0,
+          damagedStock: 0,
+
+          reorderLevel: 10,
+        })),
+      });
+    }
+    return warehouse;
   });
 };
 

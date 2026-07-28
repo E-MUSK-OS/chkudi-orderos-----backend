@@ -14,6 +14,7 @@ import { checkInventoryNotifications } from "./inventoryNotification.service.js"
 
 export const getInventoriesService = async ({
   userId,
+  warehouseId,
   page,
   limit,
   search,
@@ -28,6 +29,7 @@ export const getInventoriesService = async ({
 
   const result = await getInventories({
     userId,
+    warehouseId,
     page,
     limit,
     search,
@@ -223,7 +225,12 @@ export const adjustInventoryService = async (id, userId, data) => {
   });
 };
 
-export const createInventoryService = async (productVariantId, userId, tx) => {
+export const createInventoryService = async (
+  productVariantId,
+  warehouseId,
+  userId,
+  tx,
+) => {
   if (!productVariantId) {
     throw new AppError("Product variant id is required.", 400);
   }
@@ -232,7 +239,12 @@ export const createInventoryService = async (productVariantId, userId, tx) => {
     throw new AppError("User not found.", 401);
   }
 
-  const existingInventory = await getInventoryByVariantId(productVariantId);
+  // const existingInventory = await getInventoryByVariantId(productVariantId);
+  const existingInventory = await getInventoryByVariantId(
+    productVariantId,
+    warehouseId,
+    tx,
+  );
 
   if (existingInventory) {
     throw new AppError("Inventory already exists for this variant.", 409);
@@ -241,6 +253,8 @@ export const createInventoryService = async (productVariantId, userId, tx) => {
   return await createInventory(
     {
       productVariantId,
+
+      warehouseId,
 
       userId,
 
@@ -301,12 +315,26 @@ export const deleteInventoryService = async (id, userId) => {
   };
 };
 
-export const exportInventoryService = async (userId) => {
+export const exportInventoryService = async (userId, warehouseId) => {
   if (!userId) throw new AppError("User not found.", 401);
 
   const inventories = await prisma.productInventory.findMany({
-    where: { userId },
+    // where: { userId },
+    where: {
+      userId,
+
+      ...(warehouseId && {
+        warehouseId,
+      }),
+    },
     include: {
+      warehouse: {
+        select: {
+          warehouseName: true,
+          warehouseCode: true,
+        },
+      },
+
       productVariant: {
         include: {
           product: true,
@@ -342,6 +370,8 @@ export const exportInventoryService = async (userId) => {
   ];
 
   worksheet.columns = [
+    { header: "Warehouse Name", key: "warehouseName", width: 28 },
+    { header: "Warehouse Code", key: "warehouseCode", width: 22 },
     { header: "Product Name", key: "productName", width: 35 },
     { header: "Master SKU", key: "masterSku", width: 25 },
     { header: "Variant SKU", key: "variantSku", width: 30 },
@@ -402,6 +432,10 @@ export const exportInventoryService = async (userId) => {
 
   inventories.forEach((inventory) => {
     const row = {
+      warehouseName: inventory.warehouse.warehouseName,
+
+      warehouseCode: inventory.warehouse.warehouseCode,
+
       productName: inventory.productVariant.product.productName,
 
       masterSku: inventory.productVariant.product.masterSku,
@@ -441,6 +475,10 @@ export const importInventoryService = async (userId, file) => {
     throw new AppError("Excel file is required.", 400);
   }
 
+  // if (!warehouseId) {
+  //   throw new AppError("Warehouse is required.", 400);
+  // }
+
   const workbook = new ExcelJS.Workbook();
 
   await workbook.xlsx.load(file.buffer);
@@ -468,6 +506,7 @@ export const importInventoryService = async (userId, file) => {
   // ======================================================
 
   const requiredHeaders = [
+    "Warehouse Code",
     "Variant SKU",
     "Available",
     "Reserved",
@@ -494,6 +533,10 @@ export const importInventoryService = async (userId, file) => {
     rows.push({
       rowNumber,
 
+      warehouseCode: String(
+        row.getCell(headerMap["Warehouse Code"]).value ?? "",
+      ).trim(),
+
       variantSku: String(
         row.getCell(headerMap["Variant SKU"]).value ?? "",
       ).trim(),
@@ -515,6 +558,7 @@ export const importInventoryService = async (userId, file) => {
   // ======================================================
 
   const variantSkus = rows.map((row) => row.variantSku).filter(Boolean);
+  const warehouseCodes = rows.map((row) => row.warehouseCode).filter(Boolean);
 
   // ======================================================
   // Transaction
@@ -525,9 +569,27 @@ export const importInventoryService = async (userId, file) => {
     // Fetch All Inventories (Single Query)
     // ======================================================
 
+    // const inventories = await tx.productInventory.findMany({
+    //   where: {
+    //     userId,
+    //     productVariant: {
+    //       variantSku: {
+    //         in: variantSkus,
+    //       },
+    //     },
+    //   },
     const inventories = await tx.productInventory.findMany({
       where: {
         userId,
+
+        warehouse: {
+          userId,
+
+          warehouseCode: {
+            in: warehouseCodes,
+          },
+        },
+
         productVariant: {
           variantSku: {
             in: variantSkus,
@@ -535,6 +597,13 @@ export const importInventoryService = async (userId, file) => {
         },
       },
       include: {
+        warehouse: {
+          select: {
+            id: true,
+            warehouseCode: true,
+          },
+        },
+
         productVariant: {
           select: {
             id: true,
@@ -551,7 +620,9 @@ export const importInventoryService = async (userId, file) => {
     const inventoryMap = new Map();
 
     for (const inventory of inventories) {
-      inventoryMap.set(inventory.productVariant.variantSku, inventory);
+      const key = `${inventory.warehouse.warehouseCode}_${inventory.productVariant.variantSku}`;
+
+      inventoryMap.set(key, inventory);
     }
 
     let updated = 0;
@@ -566,6 +637,17 @@ export const importInventoryService = async (userId, file) => {
 
     for (const row of rows) {
       // Variant SKU Validation
+      if (!row.warehouseCode) {
+        failed++;
+
+        errors.push({
+          row: row.rowNumber,
+          variantSku: row.variantSku,
+          message: "Warehouse Code is required",
+        });
+
+        continue;
+      }
 
       if (!row.variantSku) {
         failed++;
@@ -607,7 +689,9 @@ export const importInventoryService = async (userId, file) => {
 
       // Get Inventory From Map
 
-      const inventory = inventoryMap.get(row.variantSku);
+      const key = `${row.warehouseCode}_${row.variantSku}`;
+
+      const inventory = inventoryMap.get(key);
 
       if (!inventory) {
         failed++;

@@ -14,7 +14,9 @@ import {
 
 import { getProductById } from "../repositories/product.repository.js";
 import prisma from "../config/prisma.js";
-import { createInventoryService } from "./inventory.service.js";
+// import { createInventoryService } from "./inventory.service.js";
+// import { getDefaultWarehouse } from "../repositories/warehouse.repository.js";
+import { getWarehousesByUserId } from "../repositories/warehouse.repository.js";
 
 // ======================================================
 // Create Product Variant
@@ -54,7 +56,28 @@ export const createProductVariantService = async (userId, data) => {
       tx,
     );
 
-    await createInventoryService(variant.id, userId, tx);
+    const warehouses = await getWarehousesByUserId(userId, tx);
+
+    // if (!defaultWarehouse) {
+    //   throw new Error("Please create a default warehouse first.");
+    // }
+
+    await tx.productInventory.createMany({
+      data: warehouses.map((warehouse) => ({
+        productVariantId: variant.id,
+        warehouseId: warehouse.id,
+        userId,
+
+        availableStock: 0,
+        reservedStock: 0,
+        incomingStock: 0,
+        damagedStock: 0,
+
+        reorderLevel: 10,
+      })),
+    });
+
+    // await createInventoryService(variant.id, userId, tx);
 
     return variant;
   });

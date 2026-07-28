@@ -19,8 +19,23 @@ import {
 
 export const getInventories = async (req, res, next) => {
   try {
+    // const result = await getInventoriesService({
+    //   userId: req.user.id,
+    //   page: req.query.page,
+    //   limit: req.query.limit,
+    //   search: req.query.search,
+    //   productId: req.query.productId,
+    //   variantStatus:
+    //     req.query.variantStatus !== undefined
+    //       ? req.query.variantStatus === "true"
+    //       : undefined,
+    //   sortBy: req.query.sortBy,
+    //   sortOrder: req.query.sortOrder,
+    // });
+
     const result = await getInventoriesService({
       userId: req.user.id,
+      warehouseId: req.query.warehouseId,
       page: req.query.page,
       limit: req.query.limit,
       search: req.query.search,
@@ -126,7 +141,11 @@ export const deleteInventory = async (req, res, next) => {
 
 export const exportInventory = async (req, res, next) => {
   try {
-    const workbook = await exportInventoryService(req.user.id);
+    // const workbook = await exportInventoryService(req.user.id);
+    const workbook = await exportInventoryService(
+      req.user.id,
+      req.query.warehouseId,
+    );
 
     res.setHeader(
       "Content-Type",
@@ -155,7 +174,12 @@ export const importInventory = async (req, res, next) => {
       });
     }
 
-    const result = await importInventoryService(req.user.id, req.file);
+    // const result = await importInventoryService(req.user.id, req.file);
+    const result = await importInventoryService(
+      req.user.id,
+      req.file,
+      // req.body.warehouseId,
+    );
 
     return res.status(200).json({
       success: true,
