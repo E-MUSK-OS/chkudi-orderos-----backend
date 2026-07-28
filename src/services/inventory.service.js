@@ -564,196 +564,202 @@ export const importInventoryService = async (userId, file) => {
   // Transaction
   // ======================================================
 
-  return await prisma.$transaction(async (tx) => {
-    // ======================================================
-    // Fetch All Inventories (Single Query)
-    // ======================================================
+  return await prisma.$transaction(
+    async (tx) => {
+      // ======================================================
+      // Fetch All Inventories (Single Query)
+      // ======================================================
 
-    // const inventories = await tx.productInventory.findMany({
-    //   where: {
-    //     userId,
-    //     productVariant: {
-    //       variantSku: {
-    //         in: variantSkus,
-    //       },
-    //     },
-    //   },
-    const inventories = await tx.productInventory.findMany({
-      where: {
-        userId,
-
-        warehouse: {
+      // const inventories = await tx.productInventory.findMany({
+      //   where: {
+      //     userId,
+      //     productVariant: {
+      //       variantSku: {
+      //         in: variantSkus,
+      //       },
+      //     },
+      //   },
+      const inventories = await tx.productInventory.findMany({
+        where: {
           userId,
 
-          warehouseCode: {
-            in: warehouseCodes,
+          warehouse: {
+            userId,
+
+            warehouseCode: {
+              in: warehouseCodes,
+            },
           },
-        },
 
-        productVariant: {
-          variantSku: {
-            in: variantSkus,
+          productVariant: {
+            variantSku: {
+              in: variantSkus,
+            },
           },
-        },
-      },
-      include: {
-        warehouse: {
-          select: {
-            id: true,
-            warehouseCode: true,
-          },
-        },
-
-        productVariant: {
-          select: {
-            id: true,
-            variantSku: true,
-          },
-        },
-      },
-    });
-
-    // ======================================================
-    // Create Inventory Map
-    // ======================================================
-
-    const inventoryMap = new Map();
-
-    for (const inventory of inventories) {
-      const key = `${inventory.warehouse.warehouseCode}_${inventory.productVariant.variantSku}`;
-
-      inventoryMap.set(key, inventory);
-    }
-
-    let updated = 0;
-
-    let failed = 0;
-
-    const errors = [];
-
-    // ======================================================
-    // Update Rows
-    // ======================================================
-
-    for (const row of rows) {
-      // Variant SKU Validation
-      if (!row.warehouseCode) {
-        failed++;
-
-        errors.push({
-          row: row.rowNumber,
-          variantSku: row.variantSku,
-          message: "Warehouse Code is required",
-        });
-
-        continue;
-      }
-
-      if (!row.variantSku) {
-        failed++;
-
-        errors.push({
-          row: row.rowNumber,
-          variantSku: "",
-          message: "Variant SKU is required",
-        });
-
-        continue;
-      }
-
-      // Number Validation
-
-      const stockFields = [
-        "availableStock",
-        "reservedStock",
-        "incomingStock",
-        "damagedStock",
-        "reorderLevel",
-      ];
-
-      const hasInvalidNumber = stockFields.some((field) =>
-        Number.isNaN(row[field]),
-      );
-
-      if (hasInvalidNumber) {
-        failed++;
-
-        errors.push({
-          row: row.rowNumber,
-          variantSku: row.variantSku,
-          message: "Invalid stock value",
-        });
-
-        continue;
-      }
-
-      // Get Inventory From Map
-
-      const key = `${row.warehouseCode}_${row.variantSku}`;
-
-      const inventory = inventoryMap.get(key);
-
-      if (!inventory) {
-        failed++;
-
-        errors.push({
-          row: row.rowNumber,
-          variantSku: row.variantSku,
-          message: "Variant SKU not found",
-        });
-
-        continue;
-      }
-
-      // Update Inventory
-
-      const updatedInventory = await tx.productInventory.update({
-        where: {
-          id: inventory.id,
-        },
-        data: {
-          availableStock: row.availableStock,
-          reservedStock: row.reservedStock,
-          incomingStock: row.incomingStock,
-          damagedStock: row.damagedStock,
-          reorderLevel: row.reorderLevel,
-        },
-      });
-
-      const inventoryWithRelations = await tx.productInventory.findUnique({
-        where: {
-          id: updatedInventory.id,
         },
         include: {
+          warehouse: {
+            select: {
+              id: true,
+              warehouseCode: true,
+            },
+          },
+
           productVariant: {
-            include: {
-              product: true,
+            select: {
+              id: true,
+              variantSku: true,
             },
           },
         },
       });
 
-      const notificationFlags = await checkInventoryNotifications(
-        inventoryWithRelations,
-      );
+      // ======================================================
+      // Create Inventory Map
+      // ======================================================
 
-      if (notificationFlags) {
-        await tx.productInventory.update({
-          where: {
-            id: updatedInventory.id,
-          },
-          data: notificationFlags,
-        });
+      const inventoryMap = new Map();
+
+      for (const inventory of inventories) {
+        const key = `${inventory.warehouse.warehouseCode}_${inventory.productVariant.variantSku}`;
+
+        inventoryMap.set(key, inventory);
       }
 
-      updated++;
-    }
+      let updated = 0;
 
-    return {
-      totalRows: rows.length,
-      updated,
-      failed,
-      errors,
-    };
-  });
+      let failed = 0;
+
+      const errors = [];
+
+      // ======================================================
+      // Update Rows
+      // ======================================================
+
+      for (const row of rows) {
+        // Variant SKU Validation
+        if (!row.warehouseCode) {
+          failed++;
+
+          errors.push({
+            row: row.rowNumber,
+            variantSku: row.variantSku,
+            message: "Warehouse Code is required",
+          });
+
+          continue;
+        }
+
+        if (!row.variantSku) {
+          failed++;
+
+          errors.push({
+            row: row.rowNumber,
+            variantSku: "",
+            message: "Variant SKU is required",
+          });
+
+          continue;
+        }
+
+        // Number Validation
+
+        const stockFields = [
+          "availableStock",
+          "reservedStock",
+          "incomingStock",
+          "damagedStock",
+          "reorderLevel",
+        ];
+
+        const hasInvalidNumber = stockFields.some((field) =>
+          Number.isNaN(row[field]),
+        );
+
+        if (hasInvalidNumber) {
+          failed++;
+
+          errors.push({
+            row: row.rowNumber,
+            variantSku: row.variantSku,
+            message: "Invalid stock value",
+          });
+
+          continue;
+        }
+
+        // Get Inventory From Map
+
+        const key = `${row.warehouseCode}_${row.variantSku}`;
+
+        const inventory = inventoryMap.get(key);
+
+        if (!inventory) {
+          failed++;
+
+          errors.push({
+            row: row.rowNumber,
+            variantSku: row.variantSku,
+            message: "Variant SKU not found",
+          });
+
+          continue;
+        }
+
+        // Update Inventory
+
+        const updatedInventory = await tx.productInventory.update({
+          where: {
+            id: inventory.id,
+          },
+          data: {
+            availableStock: row.availableStock,
+            reservedStock: row.reservedStock,
+            incomingStock: row.incomingStock,
+            damagedStock: row.damagedStock,
+            reorderLevel: row.reorderLevel,
+          },
+        });
+
+        // const inventoryWithRelations = await tx.productInventory.findUnique({
+        //   where: {
+        //     id: updatedInventory.id,
+        //   },
+        //   include: {
+        //     productVariant: {
+        //       include: {
+        //         product: true,
+        //       },
+        //     },
+        //   },
+        // });
+
+        // const notificationFlags = await checkInventoryNotifications(
+        //   inventoryWithRelations,
+        // );
+
+        // if (notificationFlags) {
+        //   await tx.productInventory.update({
+        //     where: {
+        //       id: updatedInventory.id,
+        //     },
+        //     data: notificationFlags,
+        //   });
+        // }
+
+        updated++;
+      }
+
+      return {
+        totalRows: rows.length,
+        updated,
+        failed,
+        errors,
+      };
+    },
+    {
+      maxWait: 10000,
+      timeout: 30000,
+    },
+  );
 };
