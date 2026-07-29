@@ -14,6 +14,7 @@ import productRoutes from "./product.routes.js";
 import productVariantRoutes from "./productVariant.routes.js";
 import inventoryRoutes from "./inventory.routes.js";
 import transferRoutes from "./transfer.routes.js";
+import skuMappingRoutes from "./skuMapping.routes.js";
 
 const router = Router();
 
@@ -31,5 +32,6 @@ router.use("/products", productRoutes);
 router.use("/product-variants", productVariantRoutes);
 router.use("/inventories", inventoryRoutes);
 router.use("/stock-transfers", transferRoutes);
+router.use("/sku-mappings", skuMappingRoutes);
 
 export default router;

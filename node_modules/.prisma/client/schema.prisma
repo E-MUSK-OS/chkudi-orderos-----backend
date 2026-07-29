@@ -59,6 +59,7 @@ model User {
   stockTransfers     StockTransfer[]
   products           Product[]
   productInventories ProductInventory[]
+  skuMappings        SkuMapping[]
 }
 
 enum Role {
@@ -727,4 +728,42 @@ model ProductInventory {
   @@unique([productVariantId, warehouseId])
   @@index([userId])
   @@index([availableStock])
+}
+
+// ==================================================================================
+// ============================== SKU MAPPING MODEL =================================
+// ==================================================================================
+
+model SkuMapping {
+  id String @id @default(cuid())
+
+  // ======================================================
+  // User
+  // ======================================================
+
+  userId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // ======================================================
+  // SKU Mapping
+  // ======================================================
+
+  shortSku String
+
+  barcodeSku String
+
+  ordercookSku String
+
+  // ======================================================
+  // System
+  // ======================================================
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, shortSku])
+  @@index([userId])
+  @@index([shortSku])
 }
