@@ -33,6 +33,13 @@ export const verifyJWT = async (req, res, next) => {
       });
     }
 
+    if (user.isLocked) {
+      return res.status(403).json({
+        success: false,
+        message: "Your account has been locked by NetuTechno.",
+      });
+    }
+
     req.user = user;
 
     next();

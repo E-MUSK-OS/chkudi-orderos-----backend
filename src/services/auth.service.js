@@ -29,7 +29,12 @@ import {
   deleteOtp,
 } from "../repositories/otp.repository.js";
 
-export const signupService = async ({ fullName, email, password, confirmPassword }) => {
+export const signupService = async ({
+  fullName,
+  email,
+  password,
+  confirmPassword,
+}) => {
   const existingUser = await findUserByEmail(email);
 
   if (existingUser) {
@@ -90,6 +95,10 @@ export const loginService = async ({ email, password }) => {
 
   if (!isPasswordValid) {
     throw new Error("Invalid email or password");
+  }
+
+  if (user.isLocked) {
+    throw new Error("Your account has been locked by NetuTechno.");
   }
 
   const payload = {
