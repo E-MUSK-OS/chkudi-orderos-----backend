@@ -64,6 +64,7 @@ model User {
   products           Product[]
   productInventories ProductInventory[]
   skuMappings        SkuMapping[]
+  sheetDrafts        SheetDraft[]
 }
 
 enum Role {
@@ -770,4 +771,19 @@ model SkuMapping {
   @@unique([userId, shortSku])
   @@index([userId])
   @@index([shortSku])
+}
+
+model SheetDraft {
+  id String @id @default(cuid())
+
+  userId String
+  rows   Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([updatedAt])
 }

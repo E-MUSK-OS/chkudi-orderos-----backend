@@ -6,6 +6,7 @@ import cookieParser from "cookie-parser";
 
 import routes from "./routes/index.routes.js";
 import { errorHandler } from "./middleware/error.middleware.js";
+import "./crons/sheetDraft.cron.js";
 
 const app = express();
 
