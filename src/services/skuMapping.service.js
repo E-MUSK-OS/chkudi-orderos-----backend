@@ -454,3 +454,27 @@ export const importSkuMappingService = async (userId, file) => {
     },
   );
 };
+
+export const getSkuSuggestionsService = async (userId, q) => {
+  if (!q) return [];
+
+  const data = await prisma.skuMapping.findMany({
+    where: {
+      userId,
+      shortSku: {
+        startsWith: q,
+        mode: "insensitive",
+      },
+    },
+    select: {
+      id: true,
+      shortSku: true,
+    },
+    orderBy: {
+      shortSku: "asc",
+    },
+    take: 10,
+  });
+
+  return data;
+};

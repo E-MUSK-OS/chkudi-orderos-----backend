@@ -10,6 +10,7 @@ import {
   updateSkuMapping,
   deleteSkuMapping,
   importSkuMapping,
+  getSkuSuggestionsController,
 } from "../controllers/skuMapping.controller.js";
 
 const router = express.Router();
@@ -26,6 +27,8 @@ const upload = multer({
 router.get("/", verifyJWT, getSkuMappings);
 
 router.get("/search", verifyJWT, getSkuMappingByShortSku);
+
+router.get("/suggestions", verifyJWT, getSkuSuggestionsController);
 
 router.get("/:id", verifyJWT, getSkuMappingById);
 

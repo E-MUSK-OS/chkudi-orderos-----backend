@@ -5,6 +5,7 @@ import {
   updateSkuMappingService,
   deleteSkuMappingService,
   importSkuMappingService,
+  getSkuSuggestionsService,
 } from "../services/skuMapping.service.js";
 
 import { updateSkuMappingSchema } from "../validations/skuMapping.validation.js";
@@ -139,6 +140,22 @@ export const importSkuMapping = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "SKU Mapping imported successfully.",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getSkuSuggestionsController = async (req, res, next) => {
+  try {
+    const result = await getSkuSuggestionsService(
+      req.user.id,
+      req.query.q
+    );
+
+    res.status(200).json({
+      success: true,
       data: result,
     });
   } catch (error) {
