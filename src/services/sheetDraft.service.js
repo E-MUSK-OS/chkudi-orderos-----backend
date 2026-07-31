@@ -74,7 +74,8 @@ export const deleteSheetDraftService = async (userId) => {
 };
 
 export const deleteExpiredSheetDraftsService = async () => {
-  const expiryDate = new Date(Date.now() - 60 * 1000);
+  // Delete drafts older than 24 hours
+  const expiryDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
   console.log("Current Time :", new Date());
   console.log("Expiry Time  :", expiryDate);

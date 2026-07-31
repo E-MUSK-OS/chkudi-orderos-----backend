@@ -2,14 +2,14 @@ import cron from "node-cron";
 
 import { deleteExpiredSheetDraftsService } from "../services/sheetDraft.service.js";
 
-cron.schedule("* * * * *", async () => {
-  console.log("Cron Running...");
+cron.schedule("0 * * * *", async () => {
+  console.log("Running Sheet Draft Cleanup...");
 
   try {
     const result = await deleteExpiredSheetDraftsService();
 
-    console.log(result);
+    console.log(`Deleted ${result.count} expired draft(s).`);
   } catch (error) {
-    console.log(error);
+    console.error("Sheet Draft Cleanup Error:", error);
   }
 });
