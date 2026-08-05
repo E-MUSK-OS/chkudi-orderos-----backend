@@ -49,22 +49,23 @@ model User {
   lockedAt     DateTime?
   lockedReason String?
 
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  refreshTokens      RefreshToken[]
-  vmsscans           VMSScan[]
-  operators          Operator[]
-  accounts           Account[]
-  wallet             Wallet?
-  tagLoops           TagLoop[]
-  tags               Tag[]
-  notifications      Notification[]
-  warehouses         Warehouse[]
-  stockTransfers     StockTransfer[]
-  products           Product[]
-  productInventories ProductInventory[]
-  skuMappings        SkuMapping[]
-  sheetDrafts        SheetDraft[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  refreshTokens       RefreshToken[]
+  vmsscans            VMSScan[]
+  operators           Operator[]
+  accounts            Account[]
+  wallet              Wallet?
+  tagLoops            TagLoop[]
+  tags                Tag[]
+  notifications       Notification[]
+  warehouses          Warehouse[]
+  stockTransfers      StockTransfer[]
+  products            Product[]
+  productInventories  ProductInventory[]
+  skuMappings         SkuMapping[]
+  sheetDrafts         SheetDraft[]
+  marketplaceAccounts MarketplaceAccount[]
 }
 
 enum Role {
@@ -786,4 +787,87 @@ model SheetDraft {
 
   @@index([userId])
   @@index([updatedAt])
+}
+
+// ==================================================================================
+// ============================== MARKETPLACE MODEL =================================
+// ==================================================================================
+
+model Marketplace {
+  id String @id @default(cuid())
+
+  marketplaceName String
+
+  marketplaceCode String @unique
+
+  description String?
+
+  displayOrder Int @default(0)
+
+  isActive Boolean @default(true)
+
+  marketplaceAccounts MarketplaceAccount[] @relation("MarketplaceToAccount")
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  @@index([marketplaceCode])
+}
+
+// ==================================================================================
+// ========================== MARKETPLACE ACCOUNT MODEL ==============================
+// ==================================================================================
+
+model MarketplaceAccount {
+  id String @id @default(cuid())
+
+  // ======================================================
+  // Relations
+  // ======================================================
+
+  userId String
+
+  marketplaceId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  marketplace Marketplace @relation("MarketplaceToAccount", fields: [marketplaceId], references: [id])
+
+  // ======================================================
+  // Seller Information
+  // ======================================================
+
+  sellerName String @db.VarChar(150)
+
+  sellerCode String @db.VarChar(100)
+
+  displayName String?
+
+  // ======================================================
+  // Status
+  // ======================================================
+
+  isActive Boolean @default(true)
+
+  connectionStatus MarketplaceConnectionStatus @default(NOT_CONNECTED)
+
+  // ======================================================
+  // System
+  // ======================================================
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, marketplaceId, sellerCode])
+  @@index([userId])
+  @@index([marketplaceId])
+}
+
+enum MarketplaceConnectionStatus {
+  NOT_CONNECTED
+  CONNECTING
+  CONNECTED
+  FAILED
 }

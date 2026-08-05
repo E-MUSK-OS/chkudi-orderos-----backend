@@ -16,6 +16,8 @@ import inventoryRoutes from "./inventory.routes.js";
 import transferRoutes from "./transfer.routes.js";
 import skuMappingRoutes from "./skuMapping.routes.js";
 import sheetDraftRoutes from "./sheetDraft.route.js";
+import marketplaceRoutes from "./marketplace.routes.js";
+import marketplaceAccountRoutes from "./marketplaceAccount.routes.js";
 
 const router = Router();
 
@@ -35,5 +37,7 @@ router.use("/inventories", inventoryRoutes);
 router.use("/stock-transfers", transferRoutes);
 router.use("/sku-mappings", skuMappingRoutes);
 router.use("/sheet-drafts", sheetDraftRoutes);
+router.use("/marketplaces", marketplaceRoutes);
+router.use("/marketplace-accounts", marketplaceAccountRoutes);
 
 export default router;
