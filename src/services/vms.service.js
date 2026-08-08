@@ -34,7 +34,28 @@ export const updateScanService = async (id, data) => {
   return await updateScan(id, data);
 };
 
+// export const deleteScanService = async (id) => {
+//   return await deleteScan(id);
+// };
+
 export const deleteScanService = async (id) => {
+  // 1. ડિલીટ કરતા પહેલા Database માંથી scan ની માહિતી લો
+  const scan = await getScanById(id);
+
+  if (!scan) {
+    throw new Error("Scan not found.");
+  }
+
+  // 2. જો Cloudinary publicId હોય, તો Cloudinary માંથી વિડિયો ડિલીટ કરો
+  if (scan.publicId) {
+    try {
+      await deleteVideoFromCloudinary(scan.publicId);
+    } catch (error) {
+      console.error("Failed to delete video from Cloudinary:", error);
+    }
+  }
+
+  // 3. હવે Database માંથી record ડિલીટ કરો
   return await deleteScan(id);
 };
 
