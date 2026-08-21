@@ -9,6 +9,8 @@ import {
   dismissNotification,
 } from "../repositories/notification.repository.js";
 
+import { getIO } from "../socket/socket.js";
+
 // =====================================
 // Create Notification
 // =====================================
@@ -22,18 +24,7 @@ export const createNotificationService = async ({
   entityId,
   entityType,
 }) => {
-  // const exists = await findNotification({
-  //   userId,
-  //   type,
-  //   entityId,
-  //   title,
-  // });
-
-  // if (exists) {
-  //   return exists;
-  // }
-
-  return createNotification({
+  const notification = await createNotification({
     userId,
     title,
     message,
@@ -42,6 +33,30 @@ export const createNotificationService = async ({
     entityId,
     entityType,
   });
+
+  // =====================================
+  // Send Real-Time Notification
+  // =====================================
+
+  try {
+    const io = getIO();
+
+    io.to(`user:${userId}`).emit(
+      "notification:new",
+      notification,
+    );
+
+    console.log(
+      `🔔 Notification sent to user:${userId}`,
+    );
+  } catch (error) {
+    console.error(
+      "❌ Socket notification failed:",
+      error,
+    );
+  }
+
+  return notification;
 };
 
 // =====================================
