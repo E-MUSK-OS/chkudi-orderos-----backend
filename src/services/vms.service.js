@@ -354,62 +354,11 @@ export const getUserVMSService = async (userId) => {
   return await getUserVMS(userId);
 };
 
-export const updatePackingScanStatusService = async ({
-  trackingId,
-  userId,
-}) => {
-
-  const scan = await getPackingScanByTrackingId({
-    trackingId,
-    userId,
-  });
-
-  if (!scan) {
-    return {
-      success: false,
-      message: "Tracking ID not found.",
-    };
-  }
-
-  if (scan.packingScanStatus === "SCANNED") {
-    return {
-      success: false,
-      message: "Tracking ID already scanned.",
-    };
-  }
-
-  const updatedScan = await updatePackingScanStatus({
-    id: scan.id,
-  });
-
-  try {
-    const io = getIO();
-
-    io.to(`user:${userId}`).emit("tracking:updated", {
-      trackingId,
-      userId,
-      scanId: updatedScan.id,
-      packingScanStatus: updatedScan.packingScanStatus,
-    });
-
-    console.log(`📦 Tracking update sent to user:${userId} - ${trackingId}`);
-  } catch (error) {
-    console.error("❌ Tracking socket event failed:", error);
-  }
-
-  return {
-    success: true,
-    message: "Tracking scanned successfully.",
-    data: updatedScan,
-  };
-};
-
-
 // export const updatePackingScanStatusService = async ({
 //   trackingId,
 //   userId,
 // }) => {
-//   // 1. Tracking ID શોધો
+
 //   const scan = await getPackingScanByTrackingId({
 //     trackingId,
 //     userId,
@@ -422,7 +371,6 @@ export const updatePackingScanStatusService = async ({
 //     };
 //   }
 
-//   // 2. Already scanned check
 //   if (scan.packingScanStatus === "SCANNED") {
 //     return {
 //       success: false,
@@ -430,33 +378,85 @@ export const updatePackingScanStatusService = async ({
 //     };
 //   }
 
-//   // 3. Database update
 //   const updatedScan = await updatePackingScanStatus({
 //     id: scan.id,
 //   });
 
-//   // =====================================
-//   // 4. SOCKET EVENT
-//   // =====================================
+//   try {
+//     const io = getIO();
 
-//   const io = getIO();
+//     io.to(`user:${userId}`).emit("tracking:updated", {
+//       trackingId,
+//       userId,
+//       scanId: updatedScan.id,
+//       packingScanStatus: updatedScan.packingScanStatus,
+//     });
 
-//   io.to(`user:${userId}`).emit("tracking:updated", {
-//     trackingId: updatedScan.trackingId,
-//     userId: updatedScan.userId,
-//     scanId: updatedScan.id,
-//     packingScanStatus: updatedScan.packingScanStatus,
-//   });
-
-//   console.log("📦 Tracking update emitted:", {
-//     trackingId: updatedScan.trackingId,
-//     userId: updatedScan.userId,
-//     scanId: updatedScan.id,
-//     packingScanStatus: updatedScan.packingScanStatus,
-//   });
+//     console.log(`📦 Tracking update sent to user:${userId} - ${trackingId}`);
+//   } catch (error) {
+//     console.error("❌ Tracking socket event failed:", error);
+//   }
 
 //   return {
 //     success: true,
 //     message: "Tracking scanned successfully.",
+//     data: updatedScan,
 //   };
 // };
+
+
+export const updatePackingScanStatusService = async ({
+  trackingId,
+  userId,
+}) => {
+  // 1. Tracking ID શોધો
+  const scan = await getPackingScanByTrackingId({
+    trackingId,
+    userId,
+  });
+
+  if (!scan) {
+    return {
+      success: false,
+      message: "Tracking ID not found.",
+    };
+  }
+
+  // 2. Already scanned check
+  if (scan.packingScanStatus === "SCANNED") {
+    return {
+      success: false,
+      message: "Tracking ID already scanned.",
+    };
+  }
+
+  // 3. Database update
+  const updatedScan = await updatePackingScanStatus({
+    id: scan.id,
+  });
+
+  // =====================================
+  // 4. SOCKET EVENT
+  // =====================================
+
+  const io = getIO();
+
+  io.to(`user:${userId}`).emit("tracking:updated", {
+    trackingId: updatedScan.trackingId,
+    userId: updatedScan.userId,
+    scanId: updatedScan.id,
+    packingScanStatus: updatedScan.packingScanStatus,
+  });
+
+  console.log("📦 Tracking update emitted:", {
+    trackingId: updatedScan.trackingId,
+    userId: updatedScan.userId,
+    scanId: updatedScan.id,
+    packingScanStatus: updatedScan.packingScanStatus,
+  });
+
+  return {
+    success: true,
+    message: "Tracking scanned successfully.",
+  };
+};
