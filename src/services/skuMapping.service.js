@@ -206,7 +206,7 @@ export const importSkuMappingService = async (userId, file) => {
   // Required Header
   // ======================================================
 
-  const requiredHeaders = ["Short SKU", "Barcode SKU", "OrderCook SKU"];
+  const requiredHeaders = ["Short SKU", "Barcode SKU"];
 
   for (const header of requiredHeaders) {
     if (!headerMap[header]) {
@@ -235,9 +235,34 @@ export const importSkuMappingService = async (userId, file) => {
       row.getCell(headerMap["OrderCook SKU"]).value ?? "",
     ).trim();
 
+    const brandName = String(
+      row.getCell(headerMap["Brand Name"]).value ?? "",
+    ).trim();
+
+    const asinBarcode = String(
+      row.getCell(headerMap["Asin (Barcode)"]).value ?? "",
+    ).trim();
+
+    const color = String(row.getCell(headerMap["Color"]).value ?? "").trim();
+
+    const size = String(row.getCell(headerMap["Size"]).value ?? "").trim();
+
+    const fullSku = String(
+      row.getCell(headerMap["Full SKU"]).value ?? "",
+    ).trim();
+
+    const title = String(row.getCell(headerMap["Title"]).value ?? "").trim();
+
+    const qtyValue = row.getCell(headerMap["QTY"]).value;
+
+    const qty =
+      qtyValue === null || qtyValue === undefined || qtyValue === ""
+        ? null
+        : Number(qtyValue);
+
     // Skip Empty Row
 
-    if (!shortSku && !barcodeSku && !ordercookSku) {
+    if (!shortSku && !barcodeSku) {
       return;
     }
 
@@ -246,6 +271,13 @@ export const importSkuMappingService = async (userId, file) => {
       shortSku,
       barcodeSku,
       ordercookSku,
+      brandName,
+      asinBarcode,
+      color,
+      size,
+      fullSku,
+      title,
+      qty,
     });
   });
 
@@ -350,17 +382,17 @@ export const importSkuMappingService = async (userId, file) => {
           continue;
         }
 
-        if (!row.ordercookSku) {
-          failed++;
+        // if (!row.ordercookSku) {
+        //   failed++;
 
-          errors.push({
-            row: row.rowNumber,
-            shortSku: row.shortSku,
-            message: "OrderCook SKU is required.",
-          });
+        //   errors.push({
+        //     row: row.rowNumber,
+        //     shortSku: row.shortSku,
+        //     message: "OrderCook SKU is required.",
+        //   });
 
-          continue;
-        }
+        //   continue;
+        // }
 
         // ==========================================
         // Check Existing
@@ -380,7 +412,14 @@ export const importSkuMappingService = async (userId, file) => {
             },
             data: {
               barcodeSku: row.barcodeSku.trim(),
-              ordercookSku: row.ordercookSku.trim(),
+              ordercookSku: row.ordercookSku || null,
+              brandName: row.brandName || null,
+              asinBarcode: row.asinBarcode || null,
+              color: row.color || null,
+              size: row.size || null,
+              fullSku: row.fullSku || null,
+              title: row.title || null,
+              qty: row.qty,
             },
           });
 
@@ -409,7 +448,15 @@ export const importSkuMappingService = async (userId, file) => {
           userId,
           shortSku: row.shortSku.trim().toUpperCase(),
           barcodeSku: row.barcodeSku.trim(),
-          ordercookSku: row.ordercookSku.trim(),
+
+          ordercookSku: row.ordercookSku || null,
+          brandName: row.brandName || null,
+          asinBarcode: row.asinBarcode || null,
+          color: row.color || null,
+          size: row.size || null,
+          fullSku: row.fullSku || null,
+          title: row.title || null,
+          qty: row.qty,
         });
 
         inserted++;

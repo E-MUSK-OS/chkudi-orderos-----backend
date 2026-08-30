@@ -757,11 +757,19 @@ model SkuMapping {
   // SKU Mapping
   // ======================================================
 
-  shortSku String
-
+  // Required
+  shortSku   String
   barcodeSku String
 
-  ordercookSku String
+  // Optional
+  ordercookSku String?
+  brandName    String?
+  asinBarcode  String?
+  color        String?
+  size         String?
+  fullSku      String?
+  title        String?
+  qty          Int?
 
   // ======================================================
   // System
