@@ -260,6 +260,15 @@ export const importSkuMappingService = async (userId, file) => {
         ? null
         : Number(qtyValue);
 
+    const mrpValue = headerMap["MRP"]
+      ? row.getCell(headerMap["MRP"]).value
+      : null;
+
+    const mrp =
+      mrpValue === null || mrpValue === undefined || mrpValue === ""
+        ? null
+        : Number(mrpValue);
+
     // Skip Empty Row
 
     if (!shortSku && !barcodeSku) {
@@ -278,6 +287,7 @@ export const importSkuMappingService = async (userId, file) => {
       fullSku,
       title,
       qty,
+      mrp,
     });
   });
 
@@ -382,6 +392,18 @@ export const importSkuMappingService = async (userId, file) => {
           continue;
         }
 
+        if (row.mrp !== null && (!Number.isFinite(row.mrp) || row.mrp < 0)) {
+          failed++;
+
+          errors.push({
+            row: row.rowNumber,
+            shortSku: row.shortSku,
+            message: "MRP must be a valid non-negative number.",
+          });
+
+          continue;
+        }
+
         // if (!row.ordercookSku) {
         //   failed++;
 
@@ -420,6 +442,7 @@ export const importSkuMappingService = async (userId, file) => {
               fullSku: row.fullSku || null,
               title: row.title || null,
               qty: row.qty,
+              mrp: row.mrp,
             },
           });
 
@@ -457,6 +480,7 @@ export const importSkuMappingService = async (userId, file) => {
           fullSku: row.fullSku || null,
           title: row.title || null,
           qty: row.qty,
+          mrp: row.mrp,
         });
 
         inserted++;

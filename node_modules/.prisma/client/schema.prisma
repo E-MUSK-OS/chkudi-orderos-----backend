@@ -770,6 +770,7 @@ model SkuMapping {
   fullSku      String?
   title        String?
   qty          Int?
+  mrp          Float?
 
   // ======================================================
   // System
