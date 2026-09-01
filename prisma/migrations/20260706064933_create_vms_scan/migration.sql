@@ -1,0 +1,2 @@
+-- CreateEnum
+CREATE TYPE "ScanStatus" AS ENUM ('PENDING', 'UPLOADING', 'COMPLETED', 'FAILED');

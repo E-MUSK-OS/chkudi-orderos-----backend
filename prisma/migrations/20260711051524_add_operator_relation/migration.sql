@@ -1,0 +1,2 @@
+-- AddForeignKey
+ALTER TABLE "VMSScan" ADD CONSTRAINT "VMSScan_operatorId_fkey" FOREIGN KEY ("operatorId") REFERENCES "Operator"("id") ON DELETE SET NULL ON UPDATE CASCADE;
