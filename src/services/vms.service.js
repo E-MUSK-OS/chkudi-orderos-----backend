@@ -170,9 +170,8 @@ export const uploadRecordingService = async ({
     const thumbnailPath = videoPath.replace(".mp4", ".jpg");
     const generatedThumbnail = await generateVideoThumbnail(videoPath, thumbnailPath);
 
-    const baseUrl = process.env.BACKEND_URL || "http://localhost:5000";
-    const videoUrl = `${baseUrl}/api/v1/vms/media/${scan.id}/video`;
-    const thumbnailUrl = `${baseUrl}/api/v1/vms/media/${scan.id}/thumbnail`;
+    const videoUrl = `/vms/media/${scan.id}/video`;
+    const thumbnailUrl = `/vms/media/${scan.id}/thumbnail`;
 
     // Update the scan with NAS details
     const updatedScan = await updateScan(scan.id, {
