@@ -12,8 +12,6 @@ import {
   updateScanService,
   deleteScanService,
   uploadRecordingService,
-  getUploadSignatureService,
-  saveRecordingService,
   getUserVMSService,
   updatePackingScanStatusService,
 } from "../services/vms.service.js";
@@ -102,9 +100,16 @@ export const getAllScans = async (req, res, next) => {
       limit,
     });
 
+    const baseUrl = process.env.BACKEND_URL || "http://localhost:5000";
+    const mappedScans = result.map(scan => ({
+      ...scan,
+      videoUrl: scan.videoUrl || (scan.filePath ? `${baseUrl}/api/v1/vms/media/${scan.id}/video` : null),
+      thumbnailUrl: scan.thumbnailUrl || (scan.thumbnailPath ? `${baseUrl}/api/v1/vms/media/${scan.id}/thumbnail` : null),
+    }));
+
     return res.status(200).json({
       success: true,
-      ...result,
+      data: mappedScans,
     });
   } catch (error) {
     next(error);
@@ -142,44 +147,28 @@ export const deleteScan = async (req, res, next) => {
   }
 };
 
-export const getUploadSignature = async (req, res, next) => {
-  try {
-    const signature = await getUploadSignatureService(req.body.publicId);
+// Deleted getUploadSignature
 
-    return res.status(200).json({
-      success: true,
-      message: "Cloudinary upload signature generated successfully.",
-      data: signature,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const saveRecording = async (req, res, next) => {
-  try {
-    const result = await saveRecordingService(req.body);
-
-    res.status(201).json({
-      success: true,
-      data: result,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+// Deleted saveRecording
 
 export const getUserVMS = async (req, res, next) => {
   try {
     const body = getUserVMSchema.parse(req.body);
 
     const scans = await getUserVMSService(body.userId);
+    
+    const baseUrl = process.env.BACKEND_URL || "http://localhost:5000";
+    const mappedScans = scans.map(scan => ({
+      ...scan,
+      videoUrl: scan.videoUrl || (scan.filePath ? `${baseUrl}/api/v1/vms/media/${scan.id}/video` : null),
+      thumbnailUrl: scan.thumbnailUrl || (scan.thumbnailPath ? `${baseUrl}/api/v1/vms/media/${scan.id}/thumbnail` : null),
+    }));
 
     return res.status(200).json({
       success: true,
       message: "User VMS fetched successfully.",
-      total: scans.length,
-      data: scans,
+      total: mappedScans.length,
+      data: mappedScans,
     });
   } catch (error) {
     next(error);

@@ -14,6 +14,40 @@ export const getScanById = async (id) => {
   });
 };
 
+export const getUserById = async (id) => {
+  return await prisma.user.findUnique({
+    where: {
+      id,
+    },
+    select: {
+      fullName: true,
+      username: true,
+    }
+  });
+};
+
+export const getAccountById = async (id) => {
+  return await prisma.account.findUnique({
+    where: {
+      id,
+    },
+    select: {
+      accountName: true,
+    }
+  });
+};
+
+export const getOperatorById = async (id) => {
+  return await prisma.operator.findUnique({
+    where: {
+      id,
+    },
+    select: {
+      operatorName: true,
+    }
+  });
+};
+
 export const getScanByTrackingId = async (trackingId) => {
   return await prisma.vMSScan.findFirst({
     where: {

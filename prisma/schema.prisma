@@ -110,6 +110,8 @@ model VMSScan {
 
   videoUrl     String?
   thumbnailUrl String?
+  filePath     String?
+  thumbnailPath String?
 
   publicId String?
   version  Int?

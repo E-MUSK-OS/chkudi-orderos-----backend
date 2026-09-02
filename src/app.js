@@ -24,6 +24,9 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+import path from "path";
+app.use(express.static(path.join(process.cwd(), "public")));
+
 app.get("/", (req, res) => {
   res.json({
     success: true,

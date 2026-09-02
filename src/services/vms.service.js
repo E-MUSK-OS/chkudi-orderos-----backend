@@ -10,15 +10,10 @@ import {
   getUserVMS,
   updatePackingScanStatus,
   getPackingScanByTrackingId,
+  getUserById,
+  getAccountById,
+  getOperatorById,
 } from "../repositories/vms.repository.js";
-import { uploadVideoToCloudinary } from "../utils/cloudinaryUpload.js";
-import { generateThumbnailUrl } from "../utils/generateThumbnail.js";
-import { generateUploadSignature } from "../utils/cloudinarySignature.js";
-import { deleteVideoFromCloudinary } from "../utils/cloudinaryDelete.js";
-import cloudinary from "../config/cloudinary.js";
-import { deductWalletPoints } from "./wallet.service.js";
-import { getIO } from "../socket/socket.js";
-
 export const createScanService = async (data) => {
   return await createScan(data);
 };
@@ -35,28 +30,20 @@ export const updateScanService = async (id, data) => {
   return await updateScan(id, data);
 };
 
-// export const deleteScanService = async (id) => {
-//   return await deleteScan(id);
-// };
-
 export const deleteScanService = async (id) => {
-  // 1. ડિલીટ કરતા પહેલા Database માંથી scan ની માહિતી લો
   const scan = await getScanById(id);
-
   if (!scan) {
     throw new Error("Scan not found.");
   }
 
-  // 2. જો Cloudinary publicId હોય, તો Cloudinary માંથી વિડિયો ડિલીટ કરો
-  if (scan.publicId) {
-    try {
-      await deleteVideoFromCloudinary(scan.publicId);
-    } catch (error) {
-      console.error("Failed to delete video from Cloudinary:", error);
-    }
+  // Delete files from NAS if they exist
+  if (scan.filePath) {
+    try { await fs.unlink(scan.filePath); } catch (e) { /* ignore if not found */ }
+  }
+  if (scan.thumbnailPath) {
+    try { await fs.unlink(scan.thumbnailPath); } catch (e) { /* ignore if not found */ }
   }
 
-  // 3. હવે Database માંથી record ડિલીટ કરો
   return await deleteScan(id);
 };
 
@@ -77,20 +64,10 @@ export const getAllScansService = async ({ page = 1, limit = 20 }) => {
   };
 };
 
-// export const uploadRecordingService = async ({
-//   trackingId,
-//   file,
-//   operatorId,
-//   cameraName,
-// }) => {
-//   return {
-//     success: true,
-//     trackingId,
-//     file,
-//     operatorId,
-//     cameraName,
-//   };
-// };
+import fs from "fs/promises";
+import path from "path";
+import { buildRecordingPath } from "../utils/nasPath.js";
+import { generateVideoThumbnail } from "../utils/videoThumbnail.js";
 
 export const uploadRecordingService = async ({
   trackingId,
@@ -103,6 +80,14 @@ export const uploadRecordingService = async ({
   if (!file) {
     throw new Error("Video file is required.");
   }
+  
+  if (!operatorId || operatorId === "null" || operatorId === "undefined") {
+    throw new Error("Operator ID is required to upload recording.");
+  }
+
+  if (!accountId || accountId === "null" || accountId === "undefined") {
+    throw new Error("Account ID is required to upload recording.");
+  }
 
   // Always create a new scan record for each upload
   // This ensures we don't overwrite existing completed recordings
@@ -110,53 +95,99 @@ export const uploadRecordingService = async ({
   // Check if there's an existing scan with this trackingId
   const existing = await getScanByTrackingId(trackingId);
 
+  if (existing) {
+    // Delete files from NAS if they exist
+    if (existing.filePath) {
+      try { await fs.unlink(existing.filePath); } catch (e) { /* ignore if not found */ }
+    }
+    if (existing.thumbnailPath) {
+      try { await fs.unlink(existing.thumbnailPath); } catch (e) { /* ignore if not found */ }
+    }
+    // Delete the old record from DB
+    await deleteScan(existing.id);
+  }
+
+  // Helper to handle form-data strings like "null" or "undefined" or ""
+  const sanitizeFk = (id) => (!id || id === "null" || id === "undefined" || id.trim() === "") ? null : id;
+
+  const cleanOperatorId = sanitizeFk(operatorId);
+  const cleanAccountId = sanitizeFk(accountId);
+
   // Create a new record for each upload attempt
-  // Even if the trackingId exists, we create a new entry
-  // This preserves history
   const scan = await createUploadedScan({
     trackingId,
     userId,
     status: "PENDING",
-    operatorId: operatorId || null,
-    accountId: accountId || null,
+    operatorId: cleanOperatorId,
+    accountId: cleanAccountId,
     cameraName: cameraName || null,
   });
 
+  let videoPath;
   try {
-    // Upload to Cloudinary
-    const cloudinaryResult = await uploadVideoToCloudinary(
-      file.buffer,
-      `${trackingId}_${Date.now()}`, // Add timestamp to make publicId unique
+    const date = new Date();
+    
+    // Fetch user details to get the name instead of the ID
+    const user = await getUserById(userId);
+    const folderName = user && user.fullName ? user.fullName : userId;
+
+    let accountName = "default";
+    if (cleanAccountId) {
+      const account = await getAccountById(cleanAccountId);
+      if (account && account.accountName) {
+        accountName = account.accountName;
+      }
+    }
+
+    let operatorName = "default";
+    if (cleanOperatorId) {
+      const operator = await getOperatorById(cleanOperatorId);
+      if (operator && operator.operatorName) {
+        operatorName = operator.operatorName;
+      }
+    }
+
+    const pad = (n) => n.toString().padStart(2, "0");
+    const formattedDate = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    const formattedTime = `${pad(date.getHours())}-${pad(date.getMinutes())}-${pad(date.getSeconds())}`;
+    const formattedDateTime = `${formattedDate}_${formattedTime}`;
+
+    videoPath = buildRecordingPath(
+      date.getFullYear(),
+      date.getMonth() + 1,
+      date.getDate(),
+      folderName,
+      accountName,
+      operatorName,
+      cameraName || "default",
+      trackingId,
+      formattedDateTime
     );
 
-    const thumbnailUrl = generateThumbnailUrl(cloudinaryResult.secure_url);
+    await fs.mkdir(path.dirname(videoPath), { recursive: true });
+    await fs.writeFile(videoPath, file.buffer);
 
-    // Update the scan with Cloudinary details
+    const thumbnailPath = videoPath.replace(".mp4", ".jpg");
+    const generatedThumbnail = await generateVideoThumbnail(videoPath, thumbnailPath);
+
+    const baseUrl = process.env.BACKEND_URL || "http://localhost:5000";
+    const videoUrl = `${baseUrl}/api/v1/vms/media/${scan.id}/video`;
+    const thumbnailUrl = `${baseUrl}/api/v1/vms/media/${scan.id}/thumbnail`;
+
+    // Update the scan with NAS details
     const updatedScan = await updateScan(scan.id, {
       status: "COMPLETED",
-      videoUrl: cloudinaryResult.secure_url,
-      thumbnailUrl,
+      filePath: videoPath,
+      thumbnailPath: generatedThumbnail,
+      videoUrl: videoUrl,
+      thumbnailUrl: thumbnailUrl,
       fileName: file.originalname,
       fileSize: file.size,
-      duration: cloudinaryResult.duration
-        ? Math.round(cloudinaryResult.duration)
-        : null,
-      publicId: cloudinaryResult.public_id,
-      version: cloudinaryResult.version,
       uploadedAt: new Date(),
-      operatorId: operatorId || null,
-      accountId: accountId || null,
+      operatorId: cleanOperatorId,
+      accountId: cleanAccountId,
       cameraName: cameraName || null,
     });
-
-    // await deductWalletPoints({
-    //   userId,
-    //   points: 2,
-    //   description: "VMS Scan Charge",
-    //   referenceId: trackingId,
-    // });
-
-    return await getScanById(scan.id);
 
     return await getScanById(scan.id);
   } catch (error) {
@@ -165,42 +196,12 @@ export const uploadRecordingService = async ({
       status: "FAILED",
     });
 
+    if (videoPath) {
+      try { await fs.unlink(videoPath); } catch (e) { /* best effort */ }
+    }
+
     throw error;
   }
-};
-
-// export const getUploadSignatureService = async () => {
-//   return generateUploadSignature();
-// };
-
-export const getUploadSignatureService = async (publicId) => {
-  const timestamp = Math.round(Date.now() / 1000);
-
-  // Public ID with timestamp for uniqueness
-  const uniquePublicId = `${publicId}_${timestamp}`;
-
-  const params = {
-    timestamp: timestamp,
-    folder: "vms-recordings",
-    public_id: uniquePublicId,
-    overwrite: false,
-  };
-
-  // Generate signature with ALL parameters
-  const signature = cloudinary.utils.api_sign_request(
-    params,
-    process.env.CLOUDINARY_API_SECRET,
-  );
-
-  return {
-    timestamp: timestamp,
-    folder: "vms-recordings",
-    publicId: uniquePublicId,
-    overwrite: false,
-    signature: signature,
-    apiKey: process.env.CLOUDINARY_API_KEY,
-    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
-  };
 };
 
 // export const saveRecordingService = async ({
@@ -280,75 +281,7 @@ export const getUploadSignatureService = async (publicId) => {
 //   return newScan;
 // };
 
-export const saveRecordingService = async ({
-  trackingId,
-  userId,
-  videoUrl,
-  thumbnailUrl,
-  duration,
-  bytes,
-  publicId,
-  version,
-  operatorId,
-  accountId,
-  cameraName,
-}) => {
-  const existingScan = await getScanByTrackingId(trackingId);
-
-  if (existingScan) {
-    // Old Cloudinary video delete
-    if (existingScan.publicId) {
-      try {
-        await deleteVideoFromCloudinary(existingScan.publicId);
-      } catch (error) {
-        console.error("Failed to delete old video:", error);
-      }
-    }
-
-    // Same row update
-    return await updateScan(existingScan.id, {
-      userId,
-      status: "COMPLETED",
-
-      videoUrl,
-      thumbnailUrl,
-
-      duration: duration ? Math.round(duration) : null,
-      fileSize: bytes,
-
-      publicId,
-      version,
-
-      uploadedAt: new Date(),
-
-      operatorId: operatorId || null,
-      accountId: accountId || null,
-      cameraName: cameraName || null,
-    });
-  }
-
-  // First time create
-  return await createUploadedScan({
-    trackingId,
-    userId,
-    status: "COMPLETED",
-
-    videoUrl,
-    thumbnailUrl,
-
-    duration: duration ? Math.round(duration) : null,
-    fileSize: bytes,
-
-    publicId,
-    version,
-
-    uploadedAt: new Date(),
-
-    operatorId: operatorId || null,
-    accountId: accountId || null,
-    cameraName: cameraName || null,
-  });
-};
+// Deleted saveRecordingService
 
 export const getUserVMSService = async (userId) => {
   return await getUserVMS(userId);
