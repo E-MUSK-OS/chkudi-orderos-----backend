@@ -11,7 +11,9 @@ export const streamMedia = async (req, res, next, isVideo) => {
     const legacyUrl = isVideo ? scan.videoUrl : scan.thumbnailUrl;
 
     if (!targetPath) {
-      if (legacyUrl) return res.redirect(legacyUrl); // Fallback for historical scans
+      if (legacyUrl && legacyUrl.startsWith('http')) {
+        return res.redirect(legacyUrl); // Fallback for historical scans on Cloudinary
+      }
       return res.status(404).send("Media not found");
     }
 
