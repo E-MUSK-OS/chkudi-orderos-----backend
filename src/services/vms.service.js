@@ -66,8 +66,8 @@ export const getAllScansService = async ({ page = 1, limit = 20 }) => {
 
 import fs from "fs/promises";
 import path from "path";
-import { buildRecordingPath } from "../utils/nasPath.js";
-import { generateVideoThumbnail } from "../utils/videoThumbnail.js";
+import { buildRecordingPath, buildThumbnailPath } from "../utils/nasPath.js";
+import { generateVideoThumbnail, getVideoDuration } from "../utils/videoThumbnail.js";
 
 export const uploadRecordingService = async ({
   trackingId,
@@ -124,6 +124,7 @@ export const uploadRecordingService = async ({
   });
 
   let videoPath;
+  let thumbnailPath;
   try {
     const date = new Date();
     
@@ -164,11 +165,24 @@ export const uploadRecordingService = async ({
       formattedDateTime
     );
 
+    thumbnailPath = buildThumbnailPath(
+      date.getFullYear(),
+      date.getMonth() + 1,
+      date.getDate(),
+      folderName,
+      accountName,
+      operatorName,
+      cameraName || "default",
+      trackingId,
+      formattedDateTime
+    );
+
     await fs.mkdir(path.dirname(videoPath), { recursive: true });
     await fs.writeFile(videoPath, file.buffer);
 
-    const thumbnailPath = videoPath.replace(".mp4", ".jpg");
+    await fs.mkdir(path.dirname(thumbnailPath), { recursive: true });
     const generatedThumbnail = await generateVideoThumbnail(videoPath, thumbnailPath);
+    const duration = await getVideoDuration(videoPath);
 
     const videoUrl = `/vms/media/${scan.id}/video`;
     const thumbnailUrl = `/vms/media/${scan.id}/thumbnail`;
@@ -178,6 +192,7 @@ export const uploadRecordingService = async ({
       status: "COMPLETED",
       filePath: videoPath,
       thumbnailPath: generatedThumbnail,
+      duration: duration ?? null,
       videoUrl: videoUrl,
       thumbnailUrl: thumbnailUrl,
       fileName: file.originalname,
@@ -197,6 +212,9 @@ export const uploadRecordingService = async ({
 
     if (videoPath) {
       try { await fs.unlink(videoPath); } catch (e) { /* best effort */ }
+    }
+    if (thumbnailPath) {
+      try { await fs.unlink(thumbnailPath); } catch (e) { /* best effort */ }
     }
 
     throw error;
