@@ -34,6 +34,9 @@ app.use(
       if (!origin) return callback(null, true);
       if (
         allowedOrigins.includes(origin) ||
+        origin === "https://chakudee.com" ||
+        origin === "https://www.chakudee.com" ||
+        origin.endsWith(".chakudee.com") ||
         /^http:\/\/localhost:\d+$/.test(origin) ||
         /^http:\/\/127\.0\.0\.1:\d+$/.test(origin) ||
         /^http:\/\/192\.168\.\d+\.\d+:\d+$/.test(origin)

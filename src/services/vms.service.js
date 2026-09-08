@@ -1,3 +1,4 @@
+import { getIO } from "../socket/socket.js";
 import {
   createScan,
   getScanById,
@@ -14,8 +15,28 @@ import {
   getAccountById,
   getOperatorById,
 } from "../repositories/vms.repository.js";
+
 export const createScanService = async (data) => {
-  return await createScan(data);
+  const scan = await createScan(data);
+  const fullScan = await getScanById(scan.id);
+  const baseUrl = process.env.BACKEND_URL || "http://localhost:5000";
+  const mappedScan = {
+    ...fullScan,
+    videoUrl: fullScan?.videoUrl || (fullScan?.filePath ? `${baseUrl}/api/v1/vms/media/${fullScan.id}/video` : null),
+    thumbnailUrl: fullScan?.thumbnailUrl || (fullScan?.thumbnailPath ? `${baseUrl}/api/v1/vms/media/${fullScan.id}/thumbnail` : null),
+  };
+
+  if (data.userId) {
+    try {
+      const io = getIO();
+      io.to(`user:${data.userId}`).emit("vms:new", mappedScan);
+      console.log(`📦 New VMS scan sent to user:${data.userId} - ${mappedScan.trackingId}`);
+    } catch (error) {
+      console.error("❌ New VMS socket event failed:", error);
+    }
+  }
+
+  return mappedScan;
 };
 
 export const getScanByIdService = async (id) => {
@@ -44,7 +65,19 @@ export const deleteScanService = async (id) => {
     try { await fs.unlink(scan.thumbnailPath); } catch (e) { /* ignore if not found */ }
   }
 
-  return await deleteScan(id);
+  const deleted = await deleteScan(id);
+
+  if (scan.userId) {
+    try {
+      const io = getIO();
+      io.to(`user:${scan.userId}`).emit("vms:deleted", { id: scan.id, trackingId: scan.trackingId });
+      console.log(`🗑️ Delete VMS scan sent to user:${scan.userId} - ${id}`);
+    } catch (error) {
+      console.error("❌ Delete VMS socket event failed:", error);
+    }
+  }
+
+  return deleted;
 };
 
 export const getAllScansService = async ({ page = 1, limit = 20 }) => {
@@ -203,7 +236,25 @@ export const uploadRecordingService = async ({
       cameraName: cameraName || null,
     });
 
-    return await getScanById(scan.id);
+    const fullScan = await getScanById(scan.id);
+    const baseUrl = process.env.BACKEND_URL || "http://localhost:5000";
+    const mappedScan = {
+      ...fullScan,
+      videoUrl: fullScan?.videoUrl || (fullScan?.filePath ? `${baseUrl}/api/v1/vms/media/${fullScan.id}/video` : null),
+      thumbnailUrl: fullScan?.thumbnailUrl || (fullScan?.thumbnailPath ? `${baseUrl}/api/v1/vms/media/${fullScan.id}/thumbnail` : null),
+    };
+
+    if (userId) {
+      try {
+        const io = getIO();
+        io.to(`user:${userId}`).emit("vms:new", mappedScan);
+        console.log(`📦 New VMS recording sent to user:${userId} - ${trackingId}`);
+      } catch (error) {
+        console.error("❌ New VMS recording socket event failed:", error);
+      }
+    }
+
+    return mappedScan;
   } catch (error) {
     // Update status to FAILED
     await updateScan(scan.id, {
@@ -332,6 +383,15 @@ export const updatePackingScanStatusService = async ({
     id: scan.id,
   });
 
+  const baseUrl = process.env.BACKEND_URL || "http://localhost:5000";
+  const fullUpdatedScan = {
+    ...scan,
+    ...updatedScan,
+    packingScanStatus: updatedScan.packingScanStatus,
+    videoUrl: scan.videoUrl || (scan.filePath ? `${baseUrl}/api/v1/vms/media/${scan.id}/video` : null),
+    thumbnailUrl: scan.thumbnailUrl || (scan.thumbnailPath ? `${baseUrl}/api/v1/vms/media/${scan.id}/thumbnail` : null),
+  };
+
   try {
     const io = getIO();
 
@@ -340,6 +400,7 @@ export const updatePackingScanStatusService = async ({
       userId,
       scanId: updatedScan.id,
       packingScanStatus: updatedScan.packingScanStatus,
+      scan: fullUpdatedScan,
     });
 
     console.log(`📦 Tracking update sent to user:${userId} - ${trackingId}`);
@@ -350,7 +411,7 @@ export const updatePackingScanStatusService = async ({
   return {
     success: true,
     message: "Tracking scanned successfully.",
-    data: updatedScan,
+    data: fullUpdatedScan,
   };
 };
 
