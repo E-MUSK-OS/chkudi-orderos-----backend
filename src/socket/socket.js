@@ -1,7 +1,13 @@
-// The new standalone WebSocket server URL (e.g. on Railway/Render)
+// The standalone WebSocket server URL (e.g. for Vercel/serverless environments)
 // For local development, it defaults to localhost:5001
 const WS_SERVER_URL = process.env.WS_SERVER_URL || "http://localhost:5001";
 const INTERNAL_SECRET = process.env.INTERNAL_WS_SECRET || "default_internal_ws_secret_123";
+
+let ioInstance = null;
+
+export const initSocket = (io) => {
+  ioInstance = io;
+};
 
 /**
  * A mock Socket.IO interface that forwards emits to the standalone WS server
@@ -16,8 +22,16 @@ class SocketBridge {
   }
 
   emit(event, data) {
+    if (ioInstance) {
+      if (this.room) {
+        ioInstance.to(this.room).emit(event, data);
+      } else {
+        ioInstance.emit(event, data);
+      }
+      return;
+    }
+
     // Fire and forget, we don't wait for the WebSocket server to respond
-    // to avoid slowing down the REST API
     fetch(`${WS_SERVER_URL}/internal/emit`, {
       method: "POST",
       headers: {
@@ -37,10 +51,10 @@ class SocketBridge {
 
 const ioBridge = new SocketBridge();
 
-// No longer needed since we don't attach to the Express server, 
-// but kept so we don't break old imports if any exist.
-export const initSocket = () => {};
-
 export const getIO = () => {
+  if (ioInstance) {
+    return ioInstance;
+  }
   return ioBridge;
 };
+

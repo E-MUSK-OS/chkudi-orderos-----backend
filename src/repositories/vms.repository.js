@@ -11,6 +11,37 @@ export const getScanById = async (id) => {
     where: {
       id,
     },
+    include: {
+      user: {
+        select: {
+          id: true,
+          fullName: true,
+          username: true,
+          email: true,
+          phone: true,
+          role: true,
+          isVerified: true,
+          isActive: true,
+        },
+      },
+      operator: {
+        select: {
+          id: true,
+          operatorName: true,
+          employeeCode: true,
+          isActive: true,
+          isLoggedIn: true,
+          sessionId: true,
+          lastSeen: true,
+        },
+      },
+      account: {
+        select: {
+          id: true,
+          accountName: true,
+        },
+      },
+    },
   });
 };
 
