@@ -1,6 +1,7 @@
 import express from "express";
 
 import { verifyJWT } from "../middleware/auth.middleware.js";
+import excelUpload from "../middleware/excelUpload.middleware.js";
 
 import {
   createProduct,
@@ -10,6 +11,7 @@ import {
   deleteProduct,
   updateProductStatus,
   getProductStats,
+  importProductsFromExcel,
 } from "../controllers/product.controller.js";
 
 const router = express.Router();
@@ -17,6 +19,8 @@ const router = express.Router();
 // ======================================================
 // Product Routes
 // ======================================================
+
+router.post("/import-excel", verifyJWT, excelUpload.single("file"), importProductsFromExcel);
 
 router.post("/", verifyJWT, createProduct);
 

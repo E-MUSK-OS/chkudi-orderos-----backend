@@ -50,6 +50,39 @@ export const createProductSchema = z.object({
     .max(1000, "Description cannot exceed 1000 characters.")
     .optional(),
 
+  asin: z
+    .string()
+    .trim()
+    .max(100, "ASIN cannot exceed 100 characters.")
+    .optional()
+    .nullable(),
+
+  rackAddress: z
+    .string()
+    .trim()
+    .max(100, "Rack address cannot exceed 100 characters.")
+    .optional()
+    .nullable(),
+
+  mrp: z
+    .number()
+    .min(0, "MRP must be a non-negative number.")
+    .optional()
+    .nullable(),
+
+  hsnCode: z
+    .string()
+    .trim()
+    .max(50, "HSN code cannot exceed 50 characters.")
+    .optional()
+    .nullable(),
+
+  gstRate: z
+    .number()
+    .min(0, "GST rate must be a non-negative number.")
+    .optional()
+    .nullable(),
+
   attributes: z.array(productAttributeSchema).default([]),
 
   isActive: z.boolean().optional(),

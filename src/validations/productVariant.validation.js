@@ -27,6 +27,8 @@ export const createProductVariantSchema = z.object({
     .min(2, "Variant SKU must be at least 2 characters.")
     .max(100, "Variant SKU cannot exceed 100 characters."),
 
+  asin: z.string().trim().optional().nullable(),
+
   isActive: z.boolean().optional(),
 
   attributes: z.array(attributeSchema).optional().default([]),

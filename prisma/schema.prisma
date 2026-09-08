@@ -551,6 +551,12 @@ model Product {
 
   description String?
 
+  asin        String?
+  rackAddress String?
+  mrp         Float?
+  hsnCode     String?
+  gstRate     Float?
+
   // ======================================================
   // Status
   // ======================================================
@@ -581,6 +587,7 @@ model Product {
   @@index([userId])
   @@index([category])
   @@index([brand])
+  @@index([asin])
 }
 
 model ProductAttribute {
@@ -625,6 +632,7 @@ model ProductVariant {
   // ======================================================
 
   variantSku String
+  asin       String?
 
   isActive Boolean @default(true)
 

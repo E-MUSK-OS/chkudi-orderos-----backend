@@ -12,6 +12,7 @@ import {
   deleteProductService,
   updateProductStatusService,
   getProductStatsService,
+  importProductsFromExcelService,
 } from "../services/product.service.js";
 
 // ======================================================
@@ -149,6 +150,34 @@ export const getProductStats = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       data: stats,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ======================================================
+// Import Products From Excel
+// ======================================================
+
+export const importProductsFromExcel = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Please upload an Excel file (.xlsx or .xls).",
+      });
+    }
+
+    const result = await importProductsFromExcelService(
+      req.user.id,
+      req.file.buffer,
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully imported ${result.importedCount} products.`,
+      data: result,
     });
   } catch (error) {
     next(error);

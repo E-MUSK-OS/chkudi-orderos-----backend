@@ -6,6 +6,7 @@ import {
   updateProduct,
   deleteProduct,
   findProductByName,
+  findProductByAsin,
   findProductByMasterSku,
   updateProductStatus,
   getProductStats,
@@ -48,21 +49,13 @@ export const createProductService = async (userId, data) => {
     );
   }
 
-  // Duplicate Product Name
-  const existingProductName = await findProductByName(data.productName, userId);
+  // Duplicate ASIN Check
+  if (data.asin) {
+    const existingAsin = await findProductByAsin(data.asin, userId);
 
-  if (existingProductName) {
-    throw new Error("Product name already exists.");
-  }
-
-  // Duplicate Master SKU
-  const existingMasterSku = await findProductByMasterSku(
-    data.masterSku,
-    userId,
-  );
-
-  if (existingMasterSku) {
-    throw new Error("Master SKU already exists.");
+    if (existingAsin) {
+      throw new Error("ASIN already exists.");
+    }
   }
 
   validateAttributes(data.attributes);
@@ -107,23 +100,15 @@ export const updateProductService = async (id, userId, data) => {
     throw new Error("Product not found.");
   }
 
-  // Duplicate Product Name
-  if (data.productName && data.productName !== product.productName) {
-    const existing = await findProductByName(data.productName, userId);
+  // Duplicate ASIN
+  if (data.asin && data.asin !== product.asin) {
+    const existing = await findProductByAsin(data.asin, userId);
 
     if (existing) {
-      throw new Error("Product name already exists.");
+      throw new Error("ASIN already exists.");
     }
   }
 
-  // Duplicate Master SKU
-  if (data.masterSku && data.masterSku !== product.masterSku) {
-    const existing = await findProductByMasterSku(data.masterSku, userId);
-
-    if (existing) {
-      throw new Error("Master SKU already exists.");
-    }
-  }
   if (data.attributes) {
     validateAttributes(data.attributes);
   }
@@ -184,3 +169,125 @@ export const updateProductStatusService = async (id, userId, isActive) => {
 export const getProductStatsService = async (userId) => {
   return await getProductStats(userId);
 };
+
+// ======================================================
+// Import Products From Excel
+// ======================================================
+
+import ExcelJS from "exceljs";
+
+export const importProductsFromExcelService = async (userId, fileBuffer) => {
+  if (!fileBuffer) {
+    throw new Error("No file uploaded.");
+  }
+
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(fileBuffer);
+
+  const worksheet = workbook.worksheets[0];
+  if (!worksheet) {
+    throw new Error("Excel sheet is empty.");
+  }
+
+  const headerRow = worksheet.getRow(1);
+  const headerMap = {};
+
+  headerRow.eachCell((cell, colNumber) => {
+    const headerText = String(cell.value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+    headerMap[headerText] = colNumber;
+  });
+
+  const getColValue = (row, fieldKeys) => {
+    for (const key of fieldKeys) {
+      const colNum = headerMap[key];
+      if (colNum) {
+        const val = row.getCell(colNum).value;
+        if (val !== null && val !== undefined) {
+          if (typeof val === "object" && val.result !== undefined) {
+            return String(val.result).trim();
+          }
+          if (typeof val === "object" && val.text !== undefined) {
+            return String(val.text).trim();
+          }
+          return String(val).trim();
+        }
+      }
+    }
+    return "";
+  };
+
+  const createdProducts = [];
+  const errors = [];
+
+  const totalRows = worksheet.rowCount;
+
+  for (let rowNum = 2; rowNum <= totalRows; rowNum++) {
+    const row = worksheet.getRow(rowNum);
+
+    const productName = getColValue(row, ["productname", "product", "title", "name"]);
+    const masterSku = getColValue(row, ["mastersku", "sku", "masterskucode"]);
+
+    if (!productName && !masterSku) {
+      continue; // skip empty rows
+    }
+
+    const brand = getColValue(row, ["brand", "brandname"]) || "Generic";
+    const category = getColValue(row, ["category", "categoryname"]) || "General";
+    const subCategory = getColValue(row, ["subcategory", "subcategoryname"]) || "";
+    const description = getColValue(row, ["description", "desc"]) || "";
+    const asin = getColValue(row, ["asin"]) || "";
+    const rackAddress = getColValue(row, ["rackaddress", "rack", "racklocation"]) || "";
+    
+    const mrpRaw = getColValue(row, ["mrp", "price"]);
+    const mrp = mrpRaw ? parseFloat(mrpRaw) : undefined;
+
+    const hsnCode = getColValue(row, ["hsncode", "hsn"]) || "";
+
+    const gstRaw = getColValue(row, ["gstrate", "gstpercent", "gst", "gst"]);
+    const gstRate = gstRaw ? parseFloat(gstRaw.replace("%", "")) : undefined;
+
+    const finalProductName = productName || `Product ${masterSku}`;
+    const finalMasterSku = masterSku || `SKU-${Date.now()}-${rowNum}`;
+
+    try {
+      // Check duplicate ASIN
+      if (asin) {
+        const existingAsin = await findProductByAsin(asin, userId);
+        if (existingAsin) {
+          continue;
+        }
+      }
+
+      const newProduct = await createProduct({
+        productName: finalProductName,
+        masterSku: finalMasterSku,
+        brand,
+        category,
+        subCategory: subCategory || null,
+        description: description || null,
+        asin: asin || null,
+        rackAddress: rackAddress || null,
+        mrp: isNaN(mrp) ? null : mrp,
+        hsnCode: hsnCode || null,
+        gstRate: isNaN(gstRate) ? null : gstRate,
+        isActive: true,
+        userId,
+        attributes: [],
+      });
+
+      createdProducts.push(newProduct);
+    } catch (err) {
+      errors.push({ row: rowNum, error: err.message });
+    }
+  }
+
+  return {
+    importedCount: createdProducts.length,
+    products: createdProducts,
+    errors,
+  };
+};
+

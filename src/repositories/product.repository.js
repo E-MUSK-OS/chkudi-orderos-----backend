@@ -305,6 +305,20 @@ export const getProductStats = async (userId) => {
 };
 
 // ======================================================
+// Find Product By ASIN
+// ======================================================
+
+export const findProductByAsin = async (asin, userId) => {
+  if (!asin) return null;
+  return await prisma.product.findFirst({
+    where: {
+      asin,
+      userId,
+    },
+  });
+};
+
+// ======================================================
 // Find Product By Name
 // ======================================================
 
