@@ -68,6 +68,7 @@ model User {
   marketplaceAccounts MarketplaceAccount[]
   orders              Order[]
   labelTemplates      LabelTemplate[]
+  asinImports         AsinImport[]
 }
 
 enum Role {
@@ -1046,3 +1047,27 @@ model LabelTemplate {
   
   @@index([userId])
 }
+
+// ==================================================================================
+// ============================= ASIN IMPORT MODEL ==================================
+// ==================================================================================
+
+model AsinImport {
+  id              String   @id @default(cuid())
+
+  asin            String
+  sku             String
+  generateBarcode String?
+  rackAddress     String?
+
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([asin])
+  @@index([sku])
+}
+

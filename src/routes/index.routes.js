@@ -20,6 +20,7 @@ import sheetDraftRoutes from "./sheetDraft.route.js";
 import marketplaceRoutes from "./marketplace.routes.js";
 import marketplaceAccountRoutes from "./marketplaceAccount.routes.js";
 import labelRoutes from "./label.route.js";
+import asinImportRoutes from "./asinImport.routes.js";
 
 const router = Router();
 
@@ -43,5 +44,7 @@ router.use("/sheet-drafts", sheetDraftRoutes);
 router.use("/marketplaces", marketplaceRoutes);
 router.use("/marketplace-accounts", marketplaceAccountRoutes);
 router.use("/labels", labelRoutes);
+router.use("/asin-imports", asinImportRoutes);
 
 export default router;
+

@@ -174,45 +174,46 @@ export const getProductStatsService = async (userId) => {
 // Import Products From Excel
 // ======================================================
 
-import ExcelJS from "exceljs";
+import * as xlsx from "xlsx";
 
 export const importProductsFromExcelService = async (userId, fileBuffer) => {
   if (!fileBuffer) {
     throw new Error("No file uploaded.");
   }
 
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(fileBuffer);
+  // Use xlsx to safely read the file buffer
+  const workbook = xlsx.read(fileBuffer, { type: "buffer" });
+  const sheetName = workbook.SheetNames[0];
+  const worksheet = workbook.Sheets[sheetName];
 
-  const worksheet = workbook.worksheets[0];
   if (!worksheet) {
     throw new Error("Excel sheet is empty.");
   }
 
-  const headerRow = worksheet.getRow(1);
+  // Parse to array of arrays
+  const rows = xlsx.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+  if (rows.length < 2) {
+    throw new Error("No valid product data found in Excel file.");
+  }
+
+  const headerRow = rows[0];
   const headerMap = {};
 
-  headerRow.eachCell((cell, colNumber) => {
-    const headerText = String(cell.value || "")
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, "");
-    headerMap[headerText] = colNumber;
+  headerRow.forEach((cellVal, colIndex) => {
+    const rawText = String(cellVal || "").trim();
+    const headerText = rawText.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (headerText) {
+      headerMap[headerText] = colIndex;
+    }
   });
 
   const getColValue = (row, fieldKeys) => {
     for (const key of fieldKeys) {
       const colNum = headerMap[key];
-      if (colNum) {
-        const val = row.getCell(colNum).value;
-        if (val !== null && val !== undefined) {
-          if (typeof val === "object" && val.result !== undefined) {
-            return String(val.result).trim();
-          }
-          if (typeof val === "object" && val.text !== undefined) {
-            return String(val.text).trim();
-          }
-          return String(val).trim();
+      if (colNum !== undefined) {
+        const extracted = String(row[colNum] || "").trim();
+        if (extracted) {
+          return extracted;
         }
       }
     }
@@ -222,10 +223,8 @@ export const importProductsFromExcelService = async (userId, fileBuffer) => {
   const createdProducts = [];
   const errors = [];
 
-  const totalRows = worksheet.rowCount;
-
-  for (let rowNum = 2; rowNum <= totalRows; rowNum++) {
-    const row = worksheet.getRow(rowNum);
+  for (let rowNum = 1; rowNum < rows.length; rowNum++) {
+    const row = rows[rowNum];
 
     const productName = getColValue(row, ["productname", "product", "title", "name"]);
     const masterSku = getColValue(row, ["mastersku", "sku", "masterskucode"]);
@@ -280,7 +279,7 @@ export const importProductsFromExcelService = async (userId, fileBuffer) => {
 
       createdProducts.push(newProduct);
     } catch (err) {
-      errors.push({ row: rowNum, error: err.message });
+      errors.push({ row: rowNum + 1, error: err.message });
     }
   }
 
