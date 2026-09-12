@@ -552,11 +552,12 @@ model Product {
 
   description String?
 
-  asin        String?
-  rackAddress String?
-  mrp         Float?
-  hsnCode     String?
-  gstRate     Float?
+  asin            String?
+  rackAddress     String?
+  generateBarcode String?   @default("No")
+  mrp             Float?
+  hsnCode         String?
+  gstRate         Float?
 
   // ======================================================
   // Status
@@ -632,8 +633,10 @@ model ProductVariant {
   // Variant
   // ======================================================
 
-  variantSku String
-  asin       String?
+  variantSku      String
+  asin            String?
+  rackAddress     String?
+  generateBarcode String?   @default("No")
 
   isActive Boolean @default(true)
 

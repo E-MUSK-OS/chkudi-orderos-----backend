@@ -4,6 +4,7 @@ import excelUpload from "../middleware/excelUpload.middleware.js";
 import {
   importAsinFromExcel,
   getAsinImports,
+  createAsinImport,
   updateAsinImport,
   deleteAsinImport,
   clearAsinImports,
@@ -18,6 +19,7 @@ router.post(
   importAsinFromExcel
 );
 
+router.post("/", verifyJWT, createAsinImport);
 router.get("/", verifyJWT, getAsinImports);
 router.put("/:id", verifyJWT, updateAsinImport);
 router.delete("/clear-all", verifyJWT, clearAsinImports);

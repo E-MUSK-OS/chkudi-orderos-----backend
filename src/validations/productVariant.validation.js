@@ -29,6 +29,10 @@ export const createProductVariantSchema = z.object({
 
   asin: z.string().trim().optional().nullable(),
 
+  rackAddress: z.string().trim().max(100).optional().nullable(),
+
+  generateBarcode: z.string().trim().optional().nullable(),
+
   isActive: z.boolean().optional(),
 
   attributes: z.array(attributeSchema).optional().default([]),

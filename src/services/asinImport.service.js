@@ -5,6 +5,7 @@ import {
   deleteAsinImportById,
   updateAsinImportById,
   deleteAllAsinImportsByUser,
+  upsertAsinImport,
 } from "../repositories/asinImport.repository.js";
 
 /**
@@ -143,3 +144,20 @@ export const updateAsinImportService = async (id, userId, data) => {
 export const clearAsinImportsService = async (userId) => {
   return deleteAllAsinImportsByUser(userId);
 };
+
+/**
+ * Create single ASIN import record
+ */
+export const createAsinImportService = async (userId, data) => {
+  if (!data.asin || !data.asin.trim()) {
+    throw new Error("ASIN is required.");
+  }
+  return await upsertAsinImport({
+    userId,
+    asin: data.asin.trim(),
+    sku: data.sku ? data.sku.trim() : "",
+    rackAddress: data.rackAddress ? data.rackAddress.trim() : null,
+    generateBarcode: data.generateBarcode ? data.generateBarcode.trim() : data.sku || data.asin.trim(),
+  });
+};
+

@@ -13,6 +13,7 @@ import {
 } from "../repositories/productVariant.repository.js";
 
 import { getProductById } from "../repositories/product.repository.js";
+import { upsertAsinImport } from "../repositories/asinImport.repository.js";
 import prisma from "../config/prisma.js";
 // import { createInventoryService } from "./inventory.service.js";
 // import { getDefaultWarehouse } from "../repositories/warehouse.repository.js";
@@ -47,10 +48,15 @@ export const createProductVariantService = async (userId, data) => {
     throw new Error("Variant SKU already exists.");
   }
 
-  return await prisma.$transaction(async (tx) => {
-    const variant = await createProductVariant(
+  const effectiveBarcode = data.generateBarcode ? data.generateBarcode.trim() : (product.generateBarcode || "No");
+
+  const variant = await prisma.$transaction(async (tx) => {
+    const created = await createProductVariant(
       {
         ...data,
+        asin: data.asin?.trim() || null,
+        rackAddress: data.rackAddress?.trim() || null,
+        generateBarcode: effectiveBarcode,
         isActive: data.isActive ?? true,
       },
       tx,
@@ -64,7 +70,7 @@ export const createProductVariantService = async (userId, data) => {
 
     await tx.productInventory.createMany({
       data: warehouses.map((warehouse) => ({
-        productVariantId: variant.id,
+        productVariantId: created.id,
         warehouseId: warehouse.id,
         userId,
 
@@ -77,10 +83,31 @@ export const createProductVariantService = async (userId, data) => {
       })),
     });
 
-    // await createInventoryService(variant.id, userId, tx);
+    // await createInventoryService(created.id, userId, tx);
 
-    return variant;
+    return created;
   });
+
+  // Sync to AsinImport table
+  const effectiveRackAddress = data.rackAddress !== undefined
+    ? (data.rackAddress?.trim() || null)
+    : (product.rackAddress ? product.rackAddress.trim() : null);
+
+  if (data.asin && data.asin.trim()) {
+    try {
+      await upsertAsinImport({
+        userId,
+        asin: data.asin.trim(),
+        sku: data.variantSku ? data.variantSku.trim() : "",
+        rackAddress: effectiveRackAddress,
+        generateBarcode: effectiveBarcode,
+      });
+    } catch (asinErr) {
+      console.error("Failed to sync variant ASIN to AsinImport:", asinErr);
+    }
+  }
+
+  return variant;
 };
 
 // ======================================================
@@ -135,7 +162,39 @@ export const updateProductVariantService = async (id, userId, data) => {
     }
   }
 
-  return await updateProductVariant(id, userId, data);
+  const effectiveBarcode = data.generateBarcode !== undefined
+    ? (data.generateBarcode?.trim() || "No")
+    : (variant.generateBarcode || product.generateBarcode || "No");
+
+  const updated = await updateProductVariant(id, userId, {
+    ...data,
+    ...(data.asin !== undefined ? { asin: data.asin?.trim() || null } : {}),
+    ...(data.rackAddress !== undefined ? { rackAddress: data.rackAddress?.trim() || null } : {}),
+    ...(data.generateBarcode !== undefined ? { generateBarcode: data.generateBarcode?.trim() || "No" } : {}),
+  });
+
+  // Sync to AsinImport table on variant update
+  const effectiveAsin = (data.asin !== undefined ? data.asin : variant.asin)?.trim();
+  const effectiveSku = (data.variantSku !== undefined ? data.variantSku : variant.variantSku)?.trim();
+  const effectiveRackAddress = data.rackAddress !== undefined
+    ? (data.rackAddress?.trim() || null)
+    : (variant.rackAddress?.trim() || product.rackAddress?.trim() || null);
+
+  if (effectiveAsin) {
+    try {
+      await upsertAsinImport({
+        userId,
+        asin: effectiveAsin,
+        sku: effectiveSku || "",
+        rackAddress: effectiveRackAddress,
+        generateBarcode: effectiveBarcode,
+      });
+    } catch (asinErr) {
+      console.error("Failed to sync variant ASIN to AsinImport on variant update:", asinErr);
+    }
+  }
+
+  return updated;
 };
 
 // ======================================================
@@ -150,6 +209,28 @@ export const deleteProductVariantService = async (id, userId) => {
   }
 
   await deleteProductVariant(id, userId);
+
+  // Delete matching AsinImport record
+  const orConditions = [];
+  if (variant.asin && variant.asin.trim()) {
+    orConditions.push({ asin: variant.asin.trim() });
+  }
+  if (variant.variantSku && variant.variantSku.trim()) {
+    orConditions.push({ sku: variant.variantSku.trim() });
+  }
+
+  if (orConditions.length > 0) {
+    try {
+      await prisma.asinImport.deleteMany({
+        where: {
+          userId,
+          OR: orConditions,
+        },
+      });
+    } catch (asinErr) {
+      console.error("Failed to delete AsinImport record when variant deleted:", asinErr);
+    }
+  }
 
   return true;
 };

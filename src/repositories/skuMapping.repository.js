@@ -120,6 +120,12 @@ export const getSkuMappings = async ({
         },
       },
       {
+        fullSku: {
+          contains: search,
+          mode: "insensitive",
+        },
+      },
+      {
         barcodeSku: {
           contains: search,
           mode: "insensitive",
@@ -142,6 +148,7 @@ export const getSkuMappings = async ({
     "createdAt",
     "updatedAt",
     "shortSku",
+    "fullSku",
     "barcodeSku",
     "ordercookSku",
   ];

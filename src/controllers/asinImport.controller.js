@@ -4,6 +4,7 @@ import {
   deleteAsinImportService,
   updateAsinImportService,
   clearAsinImportsService,
+  createAsinImportService,
 } from "../services/asinImport.service.js";
 
 /**
@@ -102,6 +103,31 @@ export const clearAsinImports = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: "All ASIN records cleared successfully.",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Create single ASIN import
+ */
+export const createAsinImport = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { asin, sku, generateBarcode, rackAddress } = req.body;
+
+    const result = await createAsinImportService(userId, {
+      asin,
+      sku,
+      generateBarcode,
+      rackAddress,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "ASIN record saved successfully.",
+      data: result,
     });
   } catch (error) {
     next(error);

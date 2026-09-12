@@ -74,4 +74,47 @@ export const deleteAllAsinImportsByUser = async (userId) => {
   });
 };
 
+/**
+ * Upsert ASIN import by userId and asin
+ */
+export const upsertAsinImport = async (
+  { userId, asin, sku, rackAddress, generateBarcode },
+  tx = prisma
+) => {
+  if (!asin || !asin.trim()) return null;
+  const cleanAsin = asin.trim();
+  const cleanSku = sku ? sku.trim() : "";
+  const cleanRack = rackAddress ? rackAddress.trim() : null;
+  const cleanBarcode = generateBarcode ? generateBarcode.trim() : cleanSku || cleanAsin;
+
+  const existing = await tx.asinImport.findFirst({
+    where: {
+      userId,
+      asin: { equals: cleanAsin, mode: "insensitive" },
+    },
+  });
+
+  if (existing) {
+    return await tx.asinImport.update({
+      where: { id: existing.id },
+      data: {
+        sku: cleanSku || existing.sku,
+        rackAddress: cleanRack !== null ? cleanRack : existing.rackAddress,
+        generateBarcode: cleanBarcode || existing.generateBarcode,
+      },
+    });
+  } else {
+    return await tx.asinImport.create({
+      data: {
+        userId,
+        asin: cleanAsin,
+        sku: cleanSku,
+        rackAddress: cleanRack,
+        generateBarcode: cleanBarcode,
+      },
+    });
+  }
+};
+
+
 

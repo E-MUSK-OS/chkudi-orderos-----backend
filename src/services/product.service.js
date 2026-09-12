@@ -12,6 +12,8 @@ import {
   getProductStats,
 } from "../repositories/product.repository.js";
 import { updateVariantsStatusByProduct } from "../repositories/productVariant.repository.js";
+import { upsertAsinImport } from "../repositories/asinImport.repository.js";
+import prisma from "../config/prisma.js";
 
 // ======================================================
 // Validate Product Attributes
@@ -50,8 +52,8 @@ export const createProductService = async (userId, data) => {
   }
 
   // Duplicate ASIN Check
-  if (data.asin) {
-    const existingAsin = await findProductByAsin(data.asin, userId);
+  if (data.asin && data.asin.trim()) {
+    const existingAsin = await findProductByAsin(data.asin.trim(), userId);
 
     if (existingAsin) {
       throw new Error("ASIN already exists.");
@@ -60,11 +62,30 @@ export const createProductService = async (userId, data) => {
 
   validateAttributes(data.attributes);
 
-  return await createProduct({
+  const product = await createProduct({
     ...data,
+    asin: data.asin?.trim() || null,
+    generateBarcode: data.generateBarcode ? data.generateBarcode.trim() : "No",
     isActive: data.isActive ?? true,
     userId,
   });
+
+  // Automatically sync to AsinImport table when ASIN is provided
+  if (data.asin && data.asin.trim()) {
+    try {
+      await upsertAsinImport({
+        userId,
+        asin: data.asin.trim(),
+        sku: data.masterSku ? data.masterSku.trim() : "",
+        rackAddress: data.rackAddress ? data.rackAddress.trim() : null,
+        generateBarcode: data.generateBarcode ? data.generateBarcode.trim() : "No",
+      });
+    } catch (asinErr) {
+      console.error("Failed to sync ASIN to AsinImport:", asinErr);
+    }
+  }
+
+  return product;
 };
 
 // ======================================================
@@ -101,8 +122,8 @@ export const updateProductService = async (id, userId, data) => {
   }
 
   // Duplicate ASIN
-  if (data.asin && data.asin !== product.asin) {
-    const existing = await findProductByAsin(data.asin, userId);
+  if (data.asin && data.asin.trim() && data.asin.trim() !== product.asin) {
+    const existing = await findProductByAsin(data.asin.trim(), userId);
 
     if (existing) {
       throw new Error("ASIN already exists.");
@@ -113,9 +134,72 @@ export const updateProductService = async (id, userId, data) => {
     validateAttributes(data.attributes);
   }
 
-  await updateProduct(id, data);
+  await updateProduct(id, {
+    ...data,
+    ...(data.asin !== undefined ? { asin: data.asin?.trim() || null } : {}),
+    ...(data.generateBarcode !== undefined ? { generateBarcode: data.generateBarcode?.trim() || "No" } : {}),
+  });
 
-  return await getProductById(id, userId);
+  const updatedProduct = await getProductById(id, userId);
+
+  const barcodeVal = (data.generateBarcode !== undefined ? data.generateBarcode : updatedProduct.generateBarcode)?.trim() || "No";
+
+  // Cascade generateBarcode to variants if updated
+  if (data.generateBarcode !== undefined) {
+    try {
+      await prisma.productVariant.updateMany({
+        where: { productId: id },
+        data: { generateBarcode: barcodeVal },
+      });
+    } catch (vErr) {
+      console.error("Failed to sync generateBarcode to product variants:", vErr);
+    }
+  }
+
+  // Sync parent product to AsinImport table on update
+  const effectiveAsin = (data.asin !== undefined ? data.asin : updatedProduct.asin)?.trim();
+  const effectiveSku = (data.masterSku !== undefined ? data.masterSku : updatedProduct.masterSku)?.trim();
+  const effectiveRack = (data.rackAddress !== undefined ? data.rackAddress : updatedProduct.rackAddress)?.trim();
+
+  if (effectiveAsin) {
+    try {
+      await upsertAsinImport({
+        userId,
+        asin: effectiveAsin,
+        sku: effectiveSku || "",
+        rackAddress: effectiveRack || null,
+        generateBarcode: barcodeVal,
+      });
+    } catch (asinErr) {
+      console.error("Failed to sync ASIN to AsinImport on product update:", asinErr);
+    }
+  }
+
+  // Also cascade generateBarcode to AsinImport for all child variants with an ASIN
+  if (data.generateBarcode !== undefined) {
+    try {
+      const childVariants = await prisma.productVariant.findMany({
+        where: { productId: id },
+        select: { asin: true, variantSku: true, rackAddress: true },
+      });
+
+      for (const cv of childVariants) {
+        if (cv.asin && cv.asin.trim()) {
+          await upsertAsinImport({
+            userId,
+            asin: cv.asin.trim(),
+            sku: cv.variantSku ? cv.variantSku.trim() : "",
+            rackAddress: cv.rackAddress ? cv.rackAddress.trim() : effectiveRack,
+            generateBarcode: barcodeVal,
+          });
+        }
+      }
+    } catch (cvAsinErr) {
+      console.error("Failed to sync child variants to AsinImport:", cvAsinErr);
+    }
+  }
+
+  return updatedProduct;
 };
 
 // ======================================================
@@ -123,13 +207,60 @@ export const updateProductService = async (id, userId, data) => {
 // ======================================================
 
 export const deleteProductService = async (id, userId) => {
-  const product = await getProductById(id, userId);
+  const product = await prisma.product.findFirst({
+    where: { id, userId },
+    include: { variants: true },
+  });
 
   if (!product) {
     throw new Error("Product not found.");
   }
 
+  // Collect all ASINs and SKUs related to this product and its variants
+  const asinsToDelete = new Set();
+  const skusToDelete = new Set();
+
+  if (product.asin && product.asin.trim()) {
+    asinsToDelete.add(product.asin.trim());
+  }
+  if (product.masterSku && product.masterSku.trim()) {
+    skusToDelete.add(product.masterSku.trim());
+  }
+
+  if (product.variants && Array.isArray(product.variants)) {
+    product.variants.forEach((v) => {
+      if (v.asin && v.asin.trim()) {
+        asinsToDelete.add(v.asin.trim());
+      }
+      if (v.variantSku && v.variantSku.trim()) {
+        skusToDelete.add(v.variantSku.trim());
+      }
+    });
+  }
+
   await deleteProduct(id, userId);
+
+  // Delete related AsinImport records
+  const orConditions = [];
+  if (asinsToDelete.size > 0) {
+    orConditions.push({ asin: { in: Array.from(asinsToDelete) } });
+  }
+  if (skusToDelete.size > 0) {
+    orConditions.push({ sku: { in: Array.from(skusToDelete) } });
+  }
+
+  if (orConditions.length > 0) {
+    try {
+      await prisma.asinImport.deleteMany({
+        where: {
+          userId,
+          OR: orConditions,
+        },
+      });
+    } catch (asinErr) {
+      console.error("Failed to delete AsinImport records when product deleted:", asinErr);
+    }
+  }
 
   return true;
 };
@@ -248,6 +379,10 @@ export const importProductsFromExcelService = async (userId, fileBuffer) => {
     const gstRaw = getColValue(row, ["gstrate", "gstpercent", "gst", "gst"]);
     const gstRate = gstRaw ? parseFloat(gstRaw.replace("%", "")) : undefined;
 
+    const generateBarcodeRaw = getColValue(row, ["generatebarcode", "genratebarcode", "barcode", "generate_barcode"]);
+    const isGenYes = generateBarcodeRaw && ["yes", "y", "true", "1"].includes(generateBarcodeRaw.toLowerCase());
+    const generateBarcode = isGenYes ? "Yes" : "No";
+
     const finalProductName = productName || `Product ${masterSku}`;
     const finalMasterSku = masterSku || `SKU-${Date.now()}-${rowNum}`;
 
@@ -269,6 +404,7 @@ export const importProductsFromExcelService = async (userId, fileBuffer) => {
         description: description || null,
         asin: asin || null,
         rackAddress: rackAddress || null,
+        generateBarcode,
         mrp: isNaN(mrp) ? null : mrp,
         hsnCode: hsnCode || null,
         gstRate: isNaN(gstRate) ? null : gstRate,
@@ -278,6 +414,20 @@ export const importProductsFromExcelService = async (userId, fileBuffer) => {
       });
 
       createdProducts.push(newProduct);
+
+      if (asin && asin.trim()) {
+        try {
+          await upsertAsinImport({
+            userId,
+            asin: asin.trim(),
+            sku: finalMasterSku,
+            rackAddress: rackAddress || null,
+            generateBarcode,
+          });
+        } catch (asinErr) {
+          console.error("Failed to sync imported ASIN to AsinImport:", asinErr);
+        }
+      }
     } catch (err) {
       errors.push({ row: rowNum + 1, error: err.message });
     }

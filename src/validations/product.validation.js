@@ -64,6 +64,13 @@ export const createProductSchema = z.object({
     .optional()
     .nullable(),
 
+  generateBarcode: z
+    .string()
+    .trim()
+    .max(50, "Generate Barcode cannot exceed 50 characters.")
+    .optional()
+    .nullable(),
+
   mrp: z
     .number()
     .min(0, "MRP must be a non-negative number.")
