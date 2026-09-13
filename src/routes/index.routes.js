@@ -21,6 +21,7 @@ import marketplaceRoutes from "./marketplace.routes.js";
 import marketplaceAccountRoutes from "./marketplaceAccount.routes.js";
 import labelRoutes from "./label.route.js";
 import asinImportRoutes from "./asinImport.routes.js";
+import amazonOrderRoutes from "./amazonOrder.routes.js";
 
 const router = Router();
 
@@ -45,6 +46,7 @@ router.use("/marketplaces", marketplaceRoutes);
 router.use("/marketplace-accounts", marketplaceAccountRoutes);
 router.use("/labels", labelRoutes);
 router.use("/asin-imports", asinImportRoutes);
+router.use("/amazon-orders", amazonOrderRoutes);
 
 export default router;
 

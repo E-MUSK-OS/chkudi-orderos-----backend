@@ -69,6 +69,7 @@ model User {
   orders              Order[]
   labelTemplates      LabelTemplate[]
   asinImports         AsinImport[]
+  amazonOrders        AmazonOrder[]
 }
 
 enum Role {
@@ -1073,4 +1074,37 @@ model AsinImport {
   @@index([asin])
   @@index([sku])
 }
+
+// ==================================================================================
+// ============================= AMAZON ORDER MODEL =================================
+// ==================================================================================
+
+model AmazonOrder {
+  id                String   @id @default(cuid())
+
+  invoice           String   // Invoices
+  orderId           String   // Amazon Order ID
+  awb               String   // AWB Tracking
+  asin              String   // ASIN
+  sellerSku         String   // Seller SKU
+  customer          String   // Customer
+
+  packingScanStatus String   @default("PENDING") // "PENDING" or "SCANNED"
+
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  expiresAt         DateTime // 7 days expiration timestamp
+
+  @@index([userId])
+  @@index([orderId])
+  @@index([awb])
+  @@index([packingScanStatus])
+  @@index([createdAt])
+  @@index([expiresAt])
+  @@map("amazon_orders")
+}
+
 
