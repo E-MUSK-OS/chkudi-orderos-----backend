@@ -18,6 +18,7 @@ export const getAmazonOrdersService = async ({
   userId,
   search,
   packingScanStatus,
+  date,
   page,
   limit,
 }) => {
@@ -25,6 +26,7 @@ export const getAmazonOrdersService = async ({
     userId,
     search,
     packingScanStatus,
+    date,
     page: Number(page) || 1,
     limit: Number(limit) || 50,
   });

@@ -74,19 +74,32 @@ export const savePrintedAmazonOrders = async (userId, orders) => {
 };
 
 /**
- * Get Amazon orders with filters, search, and pagination
+ * Get Amazon orders with filters, search, date, and pagination
  */
 export const getAmazonOrders = async ({
   userId,
   search = "",
   packingScanStatus,
+  date,
   page = 1,
   limit = 50,
 }) => {
   const skip = (Math.max(1, page) - 1) * limit;
 
-  const where = {
+  const baseWhere = {
     userId,
+    ...(date
+      ? {
+          createdAt: {
+            gte: new Date(new Date(date).setHours(0, 0, 0, 0)),
+            lte: new Date(new Date(date).setHours(23, 59, 59, 999)),
+          },
+        }
+      : {}),
+  };
+
+  const where = {
+    ...baseWhere,
     ...(packingScanStatus && packingScanStatus !== "ALL"
       ? { packingScanStatus }
       : {}),
@@ -104,19 +117,39 @@ export const getAmazonOrders = async ({
       : {}),
   };
 
-  const [orders, total] = await Promise.all([
+  const [orders, total, pendingCount, scannedCount] = await Promise.all([
     prisma.amazonOrder.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: [
+        { packingScanStatus: "asc" }, // "PENDING" appears before "SCANNED"
+        { createdAt: "desc" },
+      ],
       skip,
       take: limit,
     }),
     prisma.amazonOrder.count({ where }),
+    prisma.amazonOrder.count({
+      where: {
+        ...baseWhere,
+        packingScanStatus: "PENDING",
+      },
+    }),
+    prisma.amazonOrder.count({
+      where: {
+        ...baseWhere,
+        packingScanStatus: "SCANNED",
+      },
+    }),
   ]);
 
   return {
     orders,
     total,
+    summary: {
+      total: pendingCount + scannedCount,
+      pending: pendingCount,
+      scanned: scannedCount,
+    },
     page,
     totalPages: Math.ceil(total / limit) || 1,
   };

@@ -39,12 +39,13 @@ export const savePrintedOrdersController = async (req, res, next) => {
 export const getAmazonOrdersController = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { search, packingScanStatus, page, limit } = req.query;
+    const { search, packingScanStatus, date, page, limit } = req.query;
 
     const result = await getAmazonOrdersService({
       userId,
       search,
       packingScanStatus,
+      date,
       page,
       limit,
     });
@@ -53,6 +54,7 @@ export const getAmazonOrdersController = async (req, res, next) => {
       success: true,
       data: result.orders,
       total: result.total,
+      summary: result.summary,
       page: result.page,
       totalPages: result.totalPages,
     });
