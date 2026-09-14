@@ -5,7 +5,18 @@ export const uploadVMSSchema = z.object({
     .string()
     .trim()
     .min(1, "Tracking ID is required")
-    .max(100, "Tracking ID is too long"),
+    .max(50, "Tracking ID is too long")
+    .refine(
+      (val) =>
+        !val.includes("|") &&
+        !val.includes("http://") &&
+        !val.includes("https://") &&
+        !val.includes("\\") &&
+        !/\s/.test(val),
+      {
+        message: "Not valid QR code",
+      },
+    ),
 
   userId: z.string().trim().min(1, "User ID is required"),
 
