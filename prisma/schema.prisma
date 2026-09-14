@@ -70,6 +70,7 @@ model User {
   labelTemplates      LabelTemplate[]
   asinImports         AsinImport[]
   amazonOrders        AmazonOrder[]
+  amazonProcessBatches AmazonProcessBatch[]
 }
 
 enum Role {
@@ -1105,6 +1106,53 @@ model AmazonOrder {
   @@index([createdAt])
   @@index([expiresAt])
   @@map("amazon_orders")
+}
+
+// ==================================================================================
+// ========================= AMAZON PROCESS BATCH MODEL ==============================
+// ==================================================================================
+
+model AmazonProcessBatch {
+  id              String   @id @default(cuid())
+
+  batchNumber     String?
+  batchDate       DateTime // Date of the batch
+
+  totalOrders     Int      @default(0)
+  matchedCount    Int      @default(0)
+  mismatchCount   Int      @default(0)
+  matchPercentage Float    @default(0)
+
+  pdfFileName     String?
+  zplFileName     String?
+
+  summary         Json     // AmazonOrderSummary object
+  results         Json     // AmazonComparisonResult[] array (matched & comparison order records)
+
+  // Document URLs and relative file paths
+  combinedPdfPath     String?
+  combinedPdfUrl      String?
+  zplPdfPath          String?
+  zplPdfUrl           String?
+  originalPdfPath     String?
+  originalPdfUrl      String?
+  unmatchedPdfPath    String?
+  unmatchedPdfUrl     String?
+  unmatchedZplPdfPath String?
+  unmatchedZplPdfUrl  String?
+
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  expiresAt       DateTime // 6:00 PM on the 7th day
+
+  @@index([userId])
+  @@index([batchDate])
+  @@index([createdAt])
+  @@index([expiresAt])
+  @@map("amazon_process_batches")
 }
 
 

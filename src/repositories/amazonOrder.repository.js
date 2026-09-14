@@ -1,14 +1,15 @@
 import prisma from "../config/prisma.js";
+import { getIstDate, calculateSeventhDay6Pm } from "./amazonBatch.repository.js";
 
 /**
  * Bulk upsert / save printed Amazon orders for a user.
- * Sets 7 days expiration timestamp (expiresAt).
+ * Sets 7 days expiration timestamp (expiresAt: 6:00 PM on the 7th day in IST).
  * Preserves packingScanStatus if already SCANNED.
  */
 export const savePrintedAmazonOrders = async (userId, orders) => {
-  const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + SEVEN_DAYS_MS);
+  const istNow = getIstDate(now);
+  const expiresAt = calculateSeventhDay6Pm(now);
 
   const results = [];
 
@@ -47,6 +48,7 @@ export const savePrintedAmazonOrders = async (userId, orders) => {
           customer: cleanCustomer || existing.customer,
           // Preserve SCANNED if it was already marked as SCANNED
           packingScanStatus: existing.packingScanStatus === "SCANNED" ? "SCANNED" : status,
+          updatedAt: istNow,
           expiresAt,
         },
       });
@@ -63,6 +65,8 @@ export const savePrintedAmazonOrders = async (userId, orders) => {
           sellerSku: cleanSellerSku,
           customer: cleanCustomer,
           packingScanStatus: status,
+          createdAt: istNow,
+          updatedAt: istNow,
           expiresAt,
         },
       });
@@ -195,12 +199,13 @@ export const updatePackingScanStatusById = async (userId, id, status = "SCANNED"
  * Delete orders older than 7 days (called by cron)
  */
 export const deleteExpiredAmazonOrders = async () => {
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const istNow = getIstDate(new Date());
+  const sevenDaysAgoIst = new Date(istNow.getTime() - 7 * 24 * 60 * 60 * 1000);
   return prisma.amazonOrder.deleteMany({
     where: {
       OR: [
-        { expiresAt: { lt: new Date() } },
-        { createdAt: { lt: sevenDaysAgo } },
+        { expiresAt: { lt: istNow } },
+        { createdAt: { lt: sevenDaysAgoIst } },
       ],
     },
   });

@@ -60,6 +60,10 @@ io.on("connection", (socket) => {
   });
 });
 
+httpServer.timeout = 15 * 60 * 1000; // 15 minutes timeout for 1GB-2GB batch uploads
+httpServer.keepAliveTimeout = 75000;
+httpServer.headersTimeout = 76000;
+
 httpServer.listen(PORT, () => {
   console.log("=================================");
   console.log(`🚀 Server running on Port ${PORT}`);
