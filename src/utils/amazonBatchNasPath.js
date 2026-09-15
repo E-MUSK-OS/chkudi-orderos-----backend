@@ -10,13 +10,23 @@ import fs from "fs";
  * 4. Fallback: <project_root>/public/uploads/amazon-batches
  */
 export const getAmazonBatchRootDir = () => {
+  const isLocalWindows = process.platform === "win32";
+
   const configuredPath =
     process.env.NAS_AMAZON_BATCHES_ROOT_PATH ||
     process.env.NAS_BATCHES_ROOT_PATH ||
     process.env.NAS_AMAZON_BATCH_PATH;
 
   if (configuredPath && configuredPath.trim() !== "") {
-    return path.resolve(configuredPath.trim());
+    const trimmed = configuredPath.trim();
+
+    // On local Windows development: if the configured path is a Linux mount (like /data/amazon-batches or /amazon-batches)
+    // or an unreachable network path, keep local development completely local inside public/uploads
+    if (isLocalWindows && (trimmed.startsWith("/") || !fs.existsSync(trimmed))) {
+      return path.resolve(process.cwd(), "public", "uploads", "amazon-batches");
+    }
+
+    return path.resolve(trimmed);
   }
 
   // Fallback to local uploads directory if NAS path is not set
@@ -36,11 +46,30 @@ export const getAmazonBatchDir = (batchId) => {
   const rootDir = getAmazonBatchRootDir();
   const batchDir = path.join(rootDir, safeBatchId);
 
-  if (!fs.existsSync(batchDir)) {
-    fs.mkdirSync(batchDir, { recursive: true });
+  try {
+    if (!fs.existsSync(batchDir)) {
+      fs.mkdirSync(batchDir, { recursive: true });
+    }
+    return batchDir;
+  } catch (err) {
+    console.warn(`[AmazonBatch NAS] Failed to access/create NAS directory (${batchDir}): ${err.message}. Using fallback.`);
+    
+    // Tier 1 Fallback: Check D:\amazon-batches (if local Windows D: drive exists)
+    try {
+      const driveDFallback = path.join("D:\\amazon-batches", safeBatchId);
+      if (!fs.existsSync(driveDFallback)) {
+        fs.mkdirSync(driveDFallback, { recursive: true });
+      }
+      return driveDFallback;
+    } catch (e) {
+      // Tier 2 Fallback: Local project uploads directory
+      const localDir = path.resolve(process.cwd(), "public", "uploads", "amazon-batches", safeBatchId);
+      if (!fs.existsSync(localDir)) {
+        fs.mkdirSync(localDir, { recursive: true });
+      }
+      return localDir;
+    }
   }
-
-  return batchDir;
 };
 
 /**
@@ -53,32 +82,34 @@ export const resolveBatchFilePath = (storedPath, batchId, defaultFileName) => {
     return storedPath;
   }
 
-  // 2. Check within the currently configured NAS root
-  if (batchId) {
-    try {
-      const currentBatchDir = getAmazonBatchDir(batchId);
-      const fileName = storedPath ? path.basename(storedPath) : defaultFileName;
-      if (fileName) {
-        const candidatePath = path.join(currentBatchDir, fileName);
-        if (fs.existsSync(candidatePath)) {
-          return candidatePath;
-        }
-      }
-    } catch (e) {
-      // ignore
-    }
-  }
+  const safeBatchId = batchId ? String(batchId).replace(/[^a-zA-Z0-9_-]/g, "") : "";
+  const fileName = storedPath ? path.basename(storedPath) : defaultFileName;
 
-  // 3. Check legacy public/uploads directory
-  if (batchId) {
-    const legacyDir = path.join(process.cwd(), "public", "uploads", "amazon-batches", batchId);
-    const fileName = storedPath ? path.basename(storedPath) : defaultFileName;
-    if (fileName) {
-      const legacyCandidate = path.join(legacyDir, fileName);
+  if (safeBatchId && fileName) {
+    // 2. Check within the currently configured NAS root
+    try {
+      const rootDir = getAmazonBatchRootDir();
+      const candidatePath = path.join(rootDir, safeBatchId, fileName);
+      if (fs.existsSync(candidatePath)) {
+        return candidatePath;
+      }
+    } catch (e) {}
+
+    // 3. Check D:\amazon-batches (where previous batches were stored)
+    try {
+      const driveDCandidate = path.join("D:\\amazon-batches", safeBatchId, fileName);
+      if (fs.existsSync(driveDCandidate)) {
+        return driveDCandidate;
+      }
+    } catch (e) {}
+
+    // 4. Check legacy project public/uploads directory
+    try {
+      const legacyCandidate = path.join(process.cwd(), "public", "uploads", "amazon-batches", safeBatchId, fileName);
       if (fs.existsSync(legacyCandidate)) {
         return legacyCandidate;
       }
-    }
+    } catch (e) {}
   }
 
   return storedPath;

@@ -11,7 +11,7 @@ import {
 export const savePrintedOrdersController = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { orders } = req.body;
+    const { orders, batchId } = req.body;
 
     if (!orders || !Array.isArray(orders)) {
       return res.status(400).json({
@@ -20,7 +20,7 @@ export const savePrintedOrdersController = async (req, res, next) => {
       });
     }
 
-    const result = await savePrintedOrdersService(userId, orders);
+    const result = await savePrintedOrdersService(userId, orders, batchId);
 
     res.status(201).json({
       success: true,

@@ -22,16 +22,25 @@ export const savePrintedAmazonOrders = async (userId, orders) => {
     const cleanCustomer = (item.customer || "").trim();
     const status = item.packingScanStatus === "SCANNED" ? "SCANNED" : "PENDING";
 
-    if (!cleanOrderId && !cleanAwb) continue;
+    const hasValidOrderId = cleanOrderId && cleanOrderId.toUpperCase() !== "N/A" && cleanOrderId !== "-";
+    const hasValidAwb = cleanAwb && cleanAwb.toUpperCase() !== "N/A" && cleanAwb !== "-";
 
-    // Check if record already exists for this user and orderId/awb
+    // If neither valid order ID nor valid AWB is present, skip
+    if (!hasValidOrderId && !hasValidAwb) continue;
+
+    // Check if record already exists for this user strictly with valid non-"N/A" identifiers
+    const orConditions = [];
+    if (hasValidOrderId) {
+      orConditions.push({ orderId: cleanOrderId });
+    }
+    if (hasValidAwb) {
+      orConditions.push({ awb: cleanAwb });
+    }
+
     const existing = await prisma.amazonOrder.findFirst({
       where: {
         userId,
-        OR: [
-          ...(cleanOrderId ? [{ orderId: cleanOrderId }] : []),
-          ...(cleanAwb ? [{ awb: cleanAwb }] : []),
-        ],
+        OR: orConditions,
       },
     });
 
@@ -40,14 +49,15 @@ export const savePrintedAmazonOrders = async (userId, orders) => {
       const updated = await prisma.amazonOrder.update({
         where: { id: existing.id },
         data: {
-          invoice: cleanInvoice || existing.invoice,
-          orderId: cleanOrderId || existing.orderId,
-          awb: cleanAwb || existing.awb,
-          asin: cleanAsin || existing.asin,
-          sellerSku: cleanSellerSku || existing.sellerSku,
-          customer: cleanCustomer || existing.customer,
+          invoice: cleanInvoice && cleanInvoice !== "N/A" ? cleanInvoice : existing.invoice,
+          orderId: hasValidOrderId ? cleanOrderId : existing.orderId,
+          awb: hasValidAwb ? cleanAwb : existing.awb,
+          asin: cleanAsin && cleanAsin !== "N/A" ? cleanAsin : existing.asin,
+          sellerSku: cleanSellerSku && cleanSellerSku !== "N/A" ? cleanSellerSku : existing.sellerSku,
+          customer: cleanCustomer && cleanCustomer !== "N/A" ? cleanCustomer : existing.customer,
           // Preserve SCANNED if it was already marked as SCANNED
           packingScanStatus: existing.packingScanStatus === "SCANNED" ? "SCANNED" : status,
+          createdAt: istNow,
           updatedAt: istNow,
           expiresAt,
         },
@@ -58,12 +68,12 @@ export const savePrintedAmazonOrders = async (userId, orders) => {
       const created = await prisma.amazonOrder.create({
         data: {
           userId,
-          invoice: cleanInvoice,
-          orderId: cleanOrderId,
-          awb: cleanAwb,
-          asin: cleanAsin,
-          sellerSku: cleanSellerSku,
-          customer: cleanCustomer,
+          invoice: cleanInvoice || "N/A",
+          orderId: cleanOrderId || "N/A",
+          awb: cleanAwb || "N/A",
+          asin: cleanAsin || "N/A",
+          sellerSku: cleanSellerSku || "N/A",
+          customer: cleanCustomer || "N/A",
           packingScanStatus: status,
           createdAt: istNow,
           updatedAt: istNow,
@@ -90,14 +100,37 @@ export const getAmazonOrders = async ({
 }) => {
   const skip = (Math.max(1, page) - 1) * limit;
 
+  let dateFilter = null;
+  if (date) {
+    const parts = String(date).split("-").map(Number);
+    if (parts.length === 3 && !parts.some(isNaN)) {
+      const [year, month, day] = parts;
+      // In IST (UTC+05:30), 00:00:00 IST is 18:30:00 UTC on the previous day.
+      // 23:59:59.999 IST is 18:29:59.999 UTC on the same day.
+      const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000;
+      const startUtc = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0) - IST_OFFSET_MS);
+      const endUtc = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999) - IST_OFFSET_MS);
+      dateFilter = {
+        gte: startUtc,
+        lte: endUtc,
+      };
+    } else {
+      const parsed = new Date(date);
+      dateFilter = {
+        gte: new Date(new Date(parsed).setHours(0, 0, 0, 0)),
+        lte: new Date(new Date(parsed).setHours(23, 59, 59, 999)),
+      };
+    }
+  }
+
   const baseWhere = {
     userId,
-    ...(date
+    ...(dateFilter
       ? {
-          createdAt: {
-            gte: new Date(new Date(date).setHours(0, 0, 0, 0)),
-            lte: new Date(new Date(date).setHours(23, 59, 59, 999)),
-          },
+          OR: [
+            { createdAt: dateFilter },
+            { updatedAt: dateFilter },
+          ],
         }
       : {}),
   };
@@ -163,19 +196,41 @@ export const getAmazonOrders = async ({
  * Update packingScanStatus by AWB or Order ID
  */
 export const updatePackingScanStatusByAwb = async (userId, awb, status = "SCANNED") => {
-  const cleanAwb = awb.trim();
-  const order = await prisma.amazonOrder.findFirst({
+  const cleanAwb = (awb || "").trim();
+  if (!cleanAwb) return null;
+
+  // 1. Try exact match on awb or orderId (case-insensitive)
+  let order = await prisma.amazonOrder.findFirst({
     where: {
       userId,
-      OR: [{ awb: cleanAwb }, { orderId: cleanAwb }],
+      OR: [
+        { awb: { equals: cleanAwb, mode: "insensitive" } },
+        { orderId: { equals: cleanAwb, mode: "insensitive" } },
+      ],
     },
   });
+
+  // 2. If not found, try contains match (handles multi-AWB labels e.g. separated by / or newlines)
+  if (!order) {
+    order = await prisma.amazonOrder.findFirst({
+      where: {
+        userId,
+        OR: [
+          { awb: { contains: cleanAwb, mode: "insensitive" } },
+          { orderId: { contains: cleanAwb, mode: "insensitive" } },
+        ],
+      },
+    });
+  }
 
   if (!order) return null;
 
   return prisma.amazonOrder.update({
     where: { id: order.id },
-    data: { packingScanStatus: status },
+    data: {
+      packingScanStatus: status,
+      updatedAt: getIstDate(new Date()),
+    },
   });
 };
 

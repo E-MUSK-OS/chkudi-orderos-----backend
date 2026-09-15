@@ -100,6 +100,7 @@ export const getAmazonProcessBatchesHistory = async (userId, days = 7) => {
       matchPercentage: true,
       pdfFileName: true,
       zplFileName: true,
+      summary: true,
       combinedPdfUrl: true,
       zplPdfUrl: true,
       originalPdfUrl: true,
@@ -128,6 +129,62 @@ export const getAmazonProcessBatchById = async (userId, batchId) => {
   });
 
   return batch;
+};
+
+/**
+ * Update printed orders and count inside an Amazon batch's summary JSON
+ */
+export const updateBatchPrintedOrders = async (userId, batchId, orders = []) => {
+  if (!batchId || !orders || orders.length === 0) return null;
+
+  const batch = await prisma.amazonProcessBatch.findFirst({
+    where: {
+      id: batchId,
+      userId,
+    },
+  });
+
+  if (!batch) return null;
+
+  const currentSummary =
+    typeof batch.summary === "object" && batch.summary !== null ? { ...batch.summary } : {};
+
+  const printedOrderIds = new Set(currentSummary.printedOrderIds || []);
+  const printedAwbs = new Set(currentSummary.printedAwbs || []);
+  const printedIndices = new Set(currentSummary.printedIndices || []);
+
+  orders.forEach((item) => {
+    const orderId = (item.orderId || item.orderNumber || "").trim();
+    const awb = (item.awb || "").trim();
+    if (orderId && orderId !== "N/A" && orderId !== "-") printedOrderIds.add(orderId);
+    if (awb && awb !== "N/A" && awb !== "-") printedAwbs.add(awb);
+    if (typeof item.index === "number") printedIndices.add(item.index);
+  });
+
+  if (Array.isArray(batch.results)) {
+    batch.results.forEach((r) => {
+      const rOrder = (r.orderNumber || "").trim();
+      const rAwb = (r.awb || "").trim();
+      if ((rOrder && printedOrderIds.has(rOrder)) || (rAwb && printedAwbs.has(rAwb))) {
+        if (typeof r.index === "number") printedIndices.add(r.index);
+      }
+    });
+  }
+
+  const updatedSummary = {
+    ...currentSummary,
+    printedCount: printedIndices.size || printedOrderIds.size,
+    printedOrderIds: Array.from(printedOrderIds),
+    printedAwbs: Array.from(printedAwbs),
+    printedIndices: Array.from(printedIndices),
+  };
+
+  const updated = await prisma.amazonProcessBatch.update({
+    where: { id: batch.id },
+    data: { summary: updatedSummary },
+  });
+
+  return updated;
 };
 
 /**

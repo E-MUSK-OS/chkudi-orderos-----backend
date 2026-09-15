@@ -5,12 +5,22 @@ import {
   updatePackingScanStatusById,
   deleteExpiredAmazonOrders,
 } from "../repositories/amazonOrder.repository.js";
+import { updateBatchPrintedOrders } from "../repositories/amazonBatch.repository.js";
 
-export const savePrintedOrdersService = async (userId, orders) => {
+export const savePrintedOrdersService = async (userId, orders, batchId) => {
   if (!Array.isArray(orders) || orders.length === 0) {
     return { count: 0, orders: [] };
   }
   const saved = await savePrintedAmazonOrders(userId, orders);
+
+  if (batchId) {
+    try {
+      await updateBatchPrintedOrders(userId, batchId, orders);
+    } catch (e) {
+      console.warn("Failed to update batch printed orders in summary:", e);
+    }
+  }
+
   return { count: saved.length, orders: saved };
 };
 
