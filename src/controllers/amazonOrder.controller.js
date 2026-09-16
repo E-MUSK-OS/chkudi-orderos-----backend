@@ -82,7 +82,7 @@ export const updatePackingScanStatusByAwbController = async (req, res, next) => 
     if (!updated) {
       return res.status(404).json({
         success: false,
-        message: `Amazon order with AWB / Order ID "${awb}" not found.`,
+        message: `Invalid Amazon AWB tracking barcode "${awb}". Only valid AWB tracking barcodes can be scanned.`,
       });
     }
 

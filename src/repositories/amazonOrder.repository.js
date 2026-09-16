@@ -28,24 +28,27 @@ export const savePrintedAmazonOrders = async (userId, orders) => {
     // If neither valid order ID nor valid AWB is present, skip
     if (!hasValidOrderId && !hasValidAwb) continue;
 
-    // Check if record already exists for this user strictly with valid non-"N/A" identifiers
-    const orConditions = [];
-    if (hasValidOrderId) {
-      orConditions.push({ orderId: cleanOrderId });
-    }
+    // Verify print strictly by AWB Tracking (not Amazon order id because same person can have multiple orders)
+    let existing = null;
     if (hasValidAwb) {
-      orConditions.push({ awb: cleanAwb });
+      existing = await prisma.amazonOrder.findFirst({
+        where: {
+          userId,
+          awb: cleanAwb,
+        },
+      });
+    } else if (hasValidOrderId) {
+      existing = await prisma.amazonOrder.findFirst({
+        where: {
+          userId,
+          orderId: cleanOrderId,
+          awb: { in: ["N/A", "-", ""] },
+        },
+      });
     }
-
-    const existing = await prisma.amazonOrder.findFirst({
-      where: {
-        userId,
-        OR: orConditions,
-      },
-    });
 
     if (existing) {
-      // If already exists, update details and extend expiresAt, but preserve SCANNED status if already scanned
+      // Reset status to PENDING upon reprint (requires re-scanning new label) and refresh print timestamps
       const updated = await prisma.amazonOrder.update({
         where: { id: existing.id },
         data: {
@@ -55,8 +58,7 @@ export const savePrintedAmazonOrders = async (userId, orders) => {
           asin: cleanAsin && cleanAsin !== "N/A" ? cleanAsin : existing.asin,
           sellerSku: cleanSellerSku && cleanSellerSku !== "N/A" ? cleanSellerSku : existing.sellerSku,
           customer: cleanCustomer && cleanCustomer !== "N/A" ? cleanCustomer : existing.customer,
-          // Preserve SCANNED if it was already marked as SCANNED
-          packingScanStatus: existing.packingScanStatus === "SCANNED" ? "SCANNED" : status,
+          packingScanStatus: "PENDING",
           createdAt: istNow,
           updatedAt: istNow,
           expiresAt,
@@ -105,11 +107,11 @@ export const getAmazonOrders = async ({
     const parts = String(date).split("-").map(Number);
     if (parts.length === 3 && !parts.some(isNaN)) {
       const [year, month, day] = parts;
-      // In IST (UTC+05:30), 00:00:00 IST is 18:30:00 UTC on the previous day.
-      // 23:59:59.999 IST is 18:29:59.999 UTC on the same day.
-      const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000;
-      const startUtc = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0) - IST_OFFSET_MS);
-      const endUtc = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999) - IST_OFFSET_MS);
+      // getIstDate stores literal IST timestamps (via getTime() + 5.5h) into PostgreSQL.
+      // Therefore, the date filter strictly matches the full 24 hours of that selected IST day:
+      // 00:00:00.000 to 23:59:59.999.
+      const startUtc = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+      const endUtc = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
       dateFilter = {
         gte: startUtc,
         lte: endUtc,
@@ -125,14 +127,7 @@ export const getAmazonOrders = async ({
 
   const baseWhere = {
     userId,
-    ...(dateFilter
-      ? {
-          OR: [
-            { createdAt: dateFilter },
-            { updatedAt: dateFilter },
-          ],
-        }
-      : {}),
+    ...(dateFilter ? { createdAt: dateFilter } : {}),
   };
 
   const where = {
@@ -194,32 +189,32 @@ export const getAmazonOrders = async ({
 };
 
 /**
- * Update packingScanStatus by AWB or Order ID
+ * Update packingScanStatus strictly by Amazon AWB tracking barcode
  */
 export const updatePackingScanStatusByAwb = async (userId, awb, status = "SCANNED") => {
   const cleanAwb = (awb || "").trim();
-  if (!cleanAwb) return null;
+  if (!cleanAwb || cleanAwb.toUpperCase() === "N/A" || cleanAwb === "-") return null;
 
-  // 1. Try exact match on awb or orderId (case-insensitive)
+  // STRICT REQUIREMENT: Only Amazon AWB tracking barcodes are valid!
+  // Reject Amazon Order ID pattern (e.g. 402-1234567-1234567) or ASIN (B0...)
+  if (/^\d{3}-\d{7}-\d{7}$/.test(cleanAwb) || /^B[0-9A-Z]{9}$/i.test(cleanAwb)) {
+    return null;
+  }
+
+  // 1. Try exact match strictly on awb (case-insensitive)
   let order = await prisma.amazonOrder.findFirst({
     where: {
       userId,
-      OR: [
-        { awb: { equals: cleanAwb, mode: "insensitive" } },
-        { orderId: { equals: cleanAwb, mode: "insensitive" } },
-      ],
+      awb: { equals: cleanAwb, mode: "insensitive" },
     },
   });
 
-  // 2. If not found, try contains match (handles multi-AWB labels e.g. separated by / or newlines)
-  if (!order) {
+  // 2. If not found, try contains match strictly on awb (handles multi-AWB labels)
+  if (!order && cleanAwb.length >= 8) {
     order = await prisma.amazonOrder.findFirst({
       where: {
         userId,
-        OR: [
-          { awb: { contains: cleanAwb, mode: "insensitive" } },
-          { orderId: { contains: cleanAwb, mode: "insensitive" } },
-        ],
+        awb: { contains: cleanAwb, mode: "insensitive" },
       },
     });
   }

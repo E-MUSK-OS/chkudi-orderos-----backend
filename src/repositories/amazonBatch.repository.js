@@ -163,9 +163,9 @@ export const updateBatchPrintedOrders = async (userId, batchId, orders = []) => 
 
   if (Array.isArray(batch.results)) {
     batch.results.forEach((r) => {
-      const rOrder = (r.orderNumber || "").trim();
       const rAwb = (r.awb || "").trim();
-      if ((rOrder && printedOrderIds.has(rOrder)) || (rAwb && printedAwbs.has(rAwb))) {
+      // Verify print strictly by AWB Tracking (not Amazon order id because same person can have multiple orders)
+      if (rAwb && rAwb !== "N/A" && rAwb !== "-" && printedAwbs.has(rAwb)) {
         if (typeof r.index === "number") printedIndices.add(r.index);
       }
     });
@@ -173,7 +173,7 @@ export const updateBatchPrintedOrders = async (userId, batchId, orders = []) => 
 
   const updatedSummary = {
     ...currentSummary,
-    printedCount: printedIndices.size || printedOrderIds.size,
+    printedCount: printedIndices.size || printedAwbs.size,
     printedOrderIds: Array.from(printedOrderIds),
     printedAwbs: Array.from(printedAwbs),
     printedIndices: Array.from(printedIndices),
