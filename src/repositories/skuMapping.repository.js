@@ -43,25 +43,18 @@ export const getSkuMappingById = async (id, tx = prisma) => {
 
 export const getSkuMappingByShortSku = async (
   userId,
-  shortSku,
+  query,
   tx = prisma,
 ) => {
-  //   return tx.skuMapping.findUnique({
-  //     where: {
-  //       userId_shortSku: {
-  //         userId,
-  //         shortSku,
-  //       },
-  //     },
-  //   });
-
   return tx.skuMapping.findFirst({
     where: {
       userId,
-      shortSku: {
-        equals: shortSku,
-        mode: "insensitive",
-      },
+      OR: [
+        { shortSku: { equals: query, mode: "insensitive" } },
+        { fullSku: { equals: query, mode: "insensitive" } },
+        { barcodeSku: { equals: query, mode: "insensitive" } },
+        { ordercookSku: { equals: query, mode: "insensitive" } },
+      ],
     },
   });
 };
