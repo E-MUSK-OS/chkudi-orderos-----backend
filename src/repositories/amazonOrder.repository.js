@@ -159,6 +159,7 @@ export const getAmazonOrders = async ({
       where,
       orderBy: [
         { packingScanStatus: "asc" }, // "PENDING" appears before "SCANNED"
+        { updatedAt: "desc" },
         { createdAt: "desc" },
       ],
       skip,
