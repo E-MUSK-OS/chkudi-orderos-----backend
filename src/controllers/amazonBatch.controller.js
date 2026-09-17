@@ -3,6 +3,7 @@ import {
   getBatchHistoryService,
   getBatchByIdService,
   getBatchFilePathService,
+  deleteAmazonBatchService,
 } from "../services/amazonBatch.service.js";
 
 /**
@@ -124,3 +125,25 @@ export const serveBatchFileController = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Delete a specific batch and its associated printed orders
+ * DELETE /api/v1/amazon-orders/batches/:id
+ */
+export const deleteBatchController = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
+
+    const result = await deleteAmazonBatchService(userId, id);
+
+    res.status(200).json({
+      success: true,
+      message: "Amazon batch and associated orders deleted successfully.",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

@@ -244,3 +244,85 @@ export const deleteExpiredAmazonProcessBatches = async () => {
 
   return result;
 };
+
+/**
+ * Delete a specific Amazon process batch and its associated printed orders by User ID.
+ * Cleans up files from the filesystem.
+ */
+export const deleteAmazonBatch = async (userId, batchId) => {
+  // 1. Find the batch and verify ownership
+  const batch = await prisma.amazonProcessBatch.findFirst({
+    where: { id: batchId, userId },
+    select: {
+      id: true,
+      results: true,
+      summary: true,
+      combinedPdfPath: true,
+      zplPdfPath: true,
+      originalPdfPath: true,
+      unmatchedPdfPath: true,
+      unmatchedZplPdfPath: true,
+    },
+  });
+
+  if (!batch) {
+    throw new Error("Batch not found or unauthorized");
+  }
+
+  // 2. Extract AWBs to delete associated Amazon Orders
+  const awbsToDelete = new Set();
+  
+  if (batch.summary && Array.isArray(batch.summary.printedAwbs)) {
+    batch.summary.printedAwbs.forEach((awb) => {
+      if (awb && awb !== "N/A" && awb !== "-") awbsToDelete.add(awb);
+    });
+  }
+
+  if (Array.isArray(batch.results)) {
+    batch.results.forEach((r) => {
+      const rAwb = (r.awb || "").trim();
+      if (rAwb && rAwb !== "N/A" && rAwb !== "-") {
+        awbsToDelete.add(rAwb);
+      }
+    });
+  }
+
+  // 3. Delete associated printed Amazon Orders (restricted to this user)
+  if (awbsToDelete.size > 0) {
+    await prisma.amazonOrder.deleteMany({
+      where: {
+        userId, // STRICTLY limit to this user!
+        awb: { in: Array.from(awbsToDelete) },
+      },
+    });
+  }
+
+  // 4. Delete physical directories from filesystem
+  const candidateDirs = new Set();
+  try {
+    candidateDirs.add(getAmazonBatchDir(batch.id));
+  } catch (e) {}
+  candidateDirs.add(path.join(process.cwd(), "public", "uploads", "amazon-batches", batch.id));
+  if (batch.combinedPdfPath) {
+    candidateDirs.add(path.dirname(batch.combinedPdfPath));
+  }
+
+  for (const dir of candidateDirs) {
+    try {
+      if (fs.existsSync(dir)) {
+        fs.rmSync(dir, { recursive: true, force: true });
+        console.log(`[AmazonBatch Cleanup] Deleted folder: ${dir}`);
+      }
+    } catch (e) {
+      console.warn(`[AmazonBatch Cleanup] Failed to delete folder ${dir} for batch ${batch.id}:`, e);
+    }
+  }
+
+  // 5. Delete the batch record
+  await prisma.amazonProcessBatch.delete({
+    where: { id: batch.id }, // id is unique, but we already verified ownership above
+  });
+
+  return { success: true, deletedBatchId: batch.id, deletedOrdersCount: awbsToDelete.size };
+};
+

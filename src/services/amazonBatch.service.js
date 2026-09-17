@@ -5,6 +5,7 @@ import {
   getAmazonProcessBatchesHistory,
   getAmazonProcessBatchById,
   deleteExpiredAmazonProcessBatches,
+  deleteAmazonBatch,
 } from "../repositories/amazonBatch.repository.js";
 import { getAmazonBatchDir, resolveBatchFilePath } from "../utils/amazonBatchNasPath.js";
 
@@ -219,3 +220,11 @@ export const getBatchFilePathService = async (userId, batchId, fileType) => {
 export const deleteExpiredBatchesService = async () => {
   return await deleteExpiredAmazonProcessBatches();
 };
+
+/**
+ * Delete a batch and its printed orders
+ */
+export const deleteAmazonBatchService = async (userId, batchId) => {
+  return await deleteAmazonBatch(userId, batchId);
+};
+

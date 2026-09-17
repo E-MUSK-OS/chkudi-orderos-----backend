@@ -11,6 +11,7 @@ import {
   getBatchHistoryController,
   getBatchByIdController,
   serveBatchFileController,
+  deleteBatchController,
 } from "../controllers/amazonBatch.controller.js";
 import { uploadAmazonBatchFiles } from "../middleware/amazonBatch.middleware.js";
 
@@ -33,6 +34,9 @@ router.get("/batches/:id", getBatchByIdController);
 
 // Stream / download a specific batch PDF file (combined, zpl, original)
 router.get("/batches/:id/files/:fileType", serveBatchFileController);
+
+// Delete a specific batch and its printed orders
+router.delete("/batches/:id", deleteBatchController);
 
 // ==========================================
 // Printed Orders & Scanning Routes
