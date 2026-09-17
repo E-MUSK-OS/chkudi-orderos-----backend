@@ -1,6 +1,6 @@
 import * as xlsx from "xlsx";
 import {
-  bulkCreateAsinImports,
+  bulkUpsertAsinImports,
   getAsinImports,
   deleteAsinImportById,
   updateAsinImportById,
@@ -109,7 +109,7 @@ export const importAsinFromExcelService = async (userId, fileBuffer) => {
     throw new Error("No valid ASIN data found in Excel file.");
   }
 
-  const result = await bulkCreateAsinImports(itemsToCreate);
+  const result = await bulkUpsertAsinImports(itemsToCreate, userId);
 
   return {
     count: result.count,

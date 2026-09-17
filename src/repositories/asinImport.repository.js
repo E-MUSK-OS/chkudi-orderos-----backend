@@ -10,6 +10,64 @@ export const bulkCreateAsinImports = async (items) => {
 };
 
 /**
+ * Bulk upsert ASIN imports for a user
+ * Deletes old records with the same ASIN and inserts new ones
+ */
+export const bulkUpsertAsinImports = async (items, userId) => {
+  if (!items || items.length === 0) return { count: 0 };
+
+  // Deduplicate items by ASIN (last one wins)
+  const uniqueItemsMap = new Map();
+  const itemsWithoutAsin = [];
+
+  for (const item of items) {
+    if (item.asin && item.asin.trim()) {
+      uniqueItemsMap.set(item.asin.trim().toLowerCase(), item);
+    } else {
+      itemsWithoutAsin.push(item);
+    }
+  }
+
+  const finalItems = Array.from(uniqueItemsMap.values());
+  const asinsToLower = Array.from(uniqueItemsMap.keys());
+
+  return prisma.$transaction(async (tx) => {
+    if (asinsToLower.length > 0) {
+      // Find all existing records for this user
+      const existingRecords = await tx.asinImport.findMany({
+        where: { userId },
+        select: { id: true, asin: true },
+      });
+
+      // Filter to find the ones to delete (case-insensitive match)
+      const idsToDelete = existingRecords
+        .filter(record => record.asin && asinsToLower.includes(record.asin.trim().toLowerCase()))
+        .map(record => record.id);
+
+      if (idsToDelete.length > 0) {
+        await tx.asinImport.deleteMany({
+          where: {
+            id: { in: idsToDelete },
+          },
+        });
+      }
+    }
+
+    // Insert all new records
+    const allItemsToCreate = [...finalItems, ...itemsWithoutAsin];
+    if (allItemsToCreate.length > 0) {
+      const created = await tx.asinImport.createMany({
+        data: allItemsToCreate,
+      });
+      return { count: created.count };
+    }
+    return { count: 0 };
+  }, {
+    timeout: 30000 // Give it 30 seconds for large files
+  });
+};
+
+/**
  * Get all ASIN imports for a user with optional search filtering
  */
 export const getAsinImports = async ({ userId, search }) => {
