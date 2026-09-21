@@ -12,6 +12,7 @@ import {
   getBatchByIdController,
   serveBatchFileController,
   deleteBatchController,
+  attachBatchFilesController,
 } from "../controllers/amazonBatch.controller.js";
 import { uploadAmazonBatchFiles } from "../middleware/amazonBatch.middleware.js";
 
@@ -23,8 +24,11 @@ router.use(verifyJWT);
 // 7-Day History & Processed Batches Routes
 // ==========================================
 
-// Save a processed batch with the 3 PDF documents
+// Save a processed batch with initial documents (summary, results, combinedPdf)
 router.post("/batches", uploadAmazonBatchFiles, saveBatchController);
+
+// Attach additional documents to an existing batch (originalPdf, zplPdf, unmatched)
+router.post("/batches/:id/files", uploadAmazonBatchFiles, attachBatchFilesController);
 
 // Get 7-day history list of batches
 router.get("/batches/history", getBatchHistoryController);

@@ -6,6 +6,7 @@ import {
   getAmazonProcessBatchById,
   deleteExpiredAmazonProcessBatches,
   deleteAmazonBatch,
+  updateAmazonBatchFiles,
 } from "../repositories/amazonBatch.repository.js";
 import { getAmazonBatchDir, resolveBatchFilePath } from "../utils/amazonBatchNasPath.js";
 
@@ -226,5 +227,78 @@ export const deleteExpiredBatchesService = async () => {
  */
 export const deleteAmazonBatchService = async (userId, batchId) => {
   return await deleteAmazonBatch(userId, batchId);
+};
+
+/**
+ * Attach or update files for an existing Amazon batch
+ */
+export const attachBatchFilesService = async ({
+  userId,
+  batchId,
+  uploadedFiles,
+  baseUrl = process.env.BACKEND_URL || "http://localhost:5000",
+}) => {
+  if (!batchId) {
+    throw new Error("batchId is required to attach files");
+  }
+
+  const batch = await getAmazonProcessBatchById(userId, batchId);
+  if (!batch) {
+    throw new Error("Batch not found or unauthorized");
+  }
+
+  const filePaths = {};
+  const fileUrls = {};
+
+  if (uploadedFiles) {
+    const fileList = Array.isArray(uploadedFiles)
+      ? uploadedFiles
+      : Object.values(uploadedFiles).flat().filter(Boolean);
+
+    const findFile = (target) =>
+      fileList.find(
+        (f) =>
+          f.fieldname === target ||
+          f.filename?.toLowerCase().includes(target.toLowerCase())
+      );
+
+    const combined = findFile("combinedPdf") || findFile("combined_match");
+    if (combined) {
+      const relPath = `/uploads/amazon-batches/${batchId}/${combined.filename}`;
+      filePaths.combinedPdfPath = combined.path;
+      fileUrls.combinedPdfUrl = buildFileUrl(baseUrl, relPath);
+    }
+
+    const zpl = findFile("zplPdf") || findFile("converted_zpl");
+    if (zpl) {
+      const relPath = `/uploads/amazon-batches/${batchId}/${zpl.filename}`;
+      filePaths.zplPdfPath = zpl.path;
+      fileUrls.zplPdfUrl = buildFileUrl(baseUrl, relPath);
+    }
+
+    const original = findFile("originalPdf") || findFile("original_invoices");
+    if (original) {
+      const relPath = `/uploads/amazon-batches/${batchId}/${original.filename}`;
+      filePaths.originalPdfPath = original.path;
+      fileUrls.originalPdfUrl = buildFileUrl(baseUrl, relPath);
+    }
+
+    const unmatchedPdf = findFile("unmatchedPdf") || findFile("unmatched_invoices");
+    if (unmatchedPdf) {
+      const relPath = `/uploads/amazon-batches/${batchId}/${unmatchedPdf.filename}`;
+      filePaths.unmatchedPdfPath = unmatchedPdf.path;
+      fileUrls.unmatchedPdfUrl = buildFileUrl(baseUrl, relPath);
+    }
+
+    const unmatchedZpl = findFile("unmatchedZplPdf") || findFile("unmatched_zpl");
+    if (unmatchedZpl) {
+      const relPath = `/uploads/amazon-batches/${batchId}/${unmatchedZpl.filename}`;
+      filePaths.unmatchedZplPdfPath = unmatchedZpl.path;
+      fileUrls.unmatchedZplPdfUrl = buildFileUrl(baseUrl, relPath);
+    }
+  }
+
+  const updated = await updateAmazonBatchFiles(userId, batchId, fileUrls, filePaths);
+  return updated;
 };
 

@@ -132,6 +132,32 @@ export const getAmazonProcessBatchById = async (userId, batchId) => {
 };
 
 /**
+ * Update file URLs and paths for an existing Amazon batch
+ */
+export const updateAmazonBatchFiles = async (userId, batchId, fileUrls = {}, filePaths = {}) => {
+  if (!batchId) return null;
+
+  const updateData = {};
+  if (fileUrls.combinedPdfUrl !== undefined) updateData.combinedPdfUrl = fileUrls.combinedPdfUrl;
+  if (filePaths.combinedPdfPath !== undefined) updateData.combinedPdfPath = filePaths.combinedPdfPath;
+  if (fileUrls.zplPdfUrl !== undefined) updateData.zplPdfUrl = fileUrls.zplPdfUrl;
+  if (filePaths.zplPdfPath !== undefined) updateData.zplPdfPath = filePaths.zplPdfPath;
+  if (fileUrls.originalPdfUrl !== undefined) updateData.originalPdfUrl = fileUrls.originalPdfUrl;
+  if (filePaths.originalPdfPath !== undefined) updateData.originalPdfPath = filePaths.originalPdfPath;
+  if (fileUrls.unmatchedPdfUrl !== undefined) updateData.unmatchedPdfUrl = fileUrls.unmatchedPdfUrl;
+  if (filePaths.unmatchedPdfPath !== undefined) updateData.unmatchedPdfPath = filePaths.unmatchedPdfPath;
+  if (fileUrls.unmatchedZplPdfUrl !== undefined) updateData.unmatchedZplPdfUrl = fileUrls.unmatchedZplPdfUrl;
+  if (filePaths.unmatchedZplPdfPath !== undefined) updateData.unmatchedZplPdfPath = filePaths.unmatchedZplPdfPath;
+
+  const updated = await prisma.amazonProcessBatch.update({
+    where: { id: batchId },
+    data: updateData,
+  });
+
+  return updated;
+};
+
+/**
  * Update printed orders and count inside an Amazon batch's summary JSON
  */
 export const updateBatchPrintedOrders = async (userId, batchId, orders = []) => {

@@ -4,6 +4,7 @@ import {
   getBatchByIdService,
   getBatchFilePathService,
   deleteAmazonBatchService,
+  attachBatchFilesService,
 } from "../services/amazonBatch.service.js";
 
 /**
@@ -141,6 +142,36 @@ export const deleteBatchController = async (req, res, next) => {
       success: true,
       message: "Amazon batch and associated orders deleted successfully.",
       data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Attach or update files for an existing Amazon batch
+ * POST /api/v1/amazon-orders/batches/:id/files
+ */
+export const attachBatchFilesController = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
+
+    const host = req.get("host");
+    const protocol = req.protocol || "http";
+    const baseUrl = process.env.BACKEND_URL || `${protocol}://${host}`;
+
+    const updatedBatch = await attachBatchFilesService({
+      userId,
+      batchId: id,
+      uploadedFiles: req.files,
+      baseUrl,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Amazon batch files attached successfully.",
+      data: updatedBatch,
     });
   } catch (error) {
     next(error);
