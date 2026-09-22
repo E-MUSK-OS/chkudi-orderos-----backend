@@ -7,6 +7,7 @@ import {
   deleteExpiredAmazonProcessBatches,
   deleteAmazonBatch,
   updateAmazonBatchFiles,
+  deleteOrphanedAmazonBatchFolders,
 } from "../repositories/amazonBatch.repository.js";
 import { getAmazonBatchDir, resolveBatchFilePath } from "../utils/amazonBatchNasPath.js";
 
@@ -96,7 +97,7 @@ export const saveBatchService = async ({
       const cleanB64 = base64Files.combinedPdfBase64.includes(",")
         ? base64Files.combinedPdfBase64.split(",")[1]
         : base64Files.combinedPdfBase64;
-      fs.writeFileSync(filePath, Buffer.from(cleanB64, "base64"));
+      await fs.promises.writeFile(filePath, Buffer.from(cleanB64, "base64"));
       filePaths.combinedPdfPath = filePath;
       fileUrls.combinedPdfUrl = buildFileUrl(baseUrl, `/uploads/amazon-batches/${currentBatchId}/combined_match.pdf`);
     }
@@ -106,7 +107,7 @@ export const saveBatchService = async ({
       const cleanB64 = base64Files.convertedZplPdfBase64.includes(",")
         ? base64Files.convertedZplPdfBase64.split(",")[1]
         : base64Files.convertedZplPdfBase64;
-      fs.writeFileSync(filePath, Buffer.from(cleanB64, "base64"));
+      await fs.promises.writeFile(filePath, Buffer.from(cleanB64, "base64"));
       filePaths.zplPdfPath = filePath;
       fileUrls.zplPdfUrl = buildFileUrl(baseUrl, `/uploads/amazon-batches/${currentBatchId}/converted_zpl.pdf`);
     }
@@ -116,7 +117,7 @@ export const saveBatchService = async ({
       const cleanB64 = base64Files.originalPdfBase64.includes(",")
         ? base64Files.originalPdfBase64.split(",")[1]
         : base64Files.originalPdfBase64;
-      fs.writeFileSync(filePath, Buffer.from(cleanB64, "base64"));
+      await fs.promises.writeFile(filePath, Buffer.from(cleanB64, "base64"));
       filePaths.originalPdfPath = filePath;
       fileUrls.originalPdfUrl = buildFileUrl(baseUrl, `/uploads/amazon-batches/${currentBatchId}/original_invoices.pdf`);
     }
@@ -126,7 +127,7 @@ export const saveBatchService = async ({
       const cleanB64 = base64Files.unmatchedPdfBase64.includes(",")
         ? base64Files.unmatchedPdfBase64.split(",")[1]
         : base64Files.unmatchedPdfBase64;
-      fs.writeFileSync(filePath, Buffer.from(cleanB64, "base64"));
+      await fs.promises.writeFile(filePath, Buffer.from(cleanB64, "base64"));
       filePaths.unmatchedPdfPath = filePath;
       fileUrls.unmatchedPdfUrl = buildFileUrl(baseUrl, `/uploads/amazon-batches/${currentBatchId}/unmatched_invoices.pdf`);
     }
@@ -136,7 +137,7 @@ export const saveBatchService = async ({
       const cleanB64 = base64Files.unmatchedZplBase64.includes(",")
         ? base64Files.unmatchedZplBase64.split(",")[1]
         : base64Files.unmatchedZplBase64;
-      fs.writeFileSync(filePath, Buffer.from(cleanB64, "base64"));
+      await fs.promises.writeFile(filePath, Buffer.from(cleanB64, "base64"));
       filePaths.unmatchedZplPdfPath = filePath;
       fileUrls.unmatchedZplPdfUrl = buildFileUrl(baseUrl, `/uploads/amazon-batches/${currentBatchId}/unmatched_zpl.pdf`);
     }
@@ -219,7 +220,9 @@ export const getBatchFilePathService = async (userId, batchId, fileType) => {
  * Delete expired batches (hourly cron)
  */
 export const deleteExpiredBatchesService = async () => {
-  return await deleteExpiredAmazonProcessBatches();
+  const result = await deleteExpiredAmazonProcessBatches();
+  const orphanedResult = await deleteOrphanedAmazonBatchFolders();
+  return { ...result, orphanedDeleted: orphanedResult?.count || 0 };
 };
 
 /**

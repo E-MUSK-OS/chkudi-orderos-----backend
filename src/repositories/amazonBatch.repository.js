@@ -1,7 +1,7 @@
 import prisma from "../config/prisma.js";
 import fs from "fs";
 import path from "path";
-import { getAmazonBatchDir } from "../utils/amazonBatchNasPath.js";
+import { getAmazonBatchDir, getAmazonBatchRootDir } from "../utils/amazonBatchNasPath.js";
 
 /**
  * Convert any date to India Standard Time (IST, UTC+05:30) representation
@@ -18,11 +18,9 @@ export const getIstDate = (date = new Date()) => {
  * Example: if created on Sept 14 (at any time), 7th day is Sept 21 at 18:00:00.
  */
 export const calculateSeventhDay6Pm = (createdAt = new Date()) => {
-  const istOffsetMs = (5 * 60 + 30) * 60 * 1000;
-  const istNow = new Date(createdAt.getTime() + istOffsetMs);
-  const year = istNow.getUTCFullYear();
-  const month = istNow.getUTCMonth();
-  const day = istNow.getUTCDate() + 7;
+  const year = createdAt.getUTCFullYear();
+  const month = createdAt.getUTCMonth();
+  const day = createdAt.getUTCDate() + 7;
   return new Date(Date.UTC(year, month, day, 18, 0, 0, 0));
 };
 
@@ -238,7 +236,14 @@ export const deleteExpiredAmazonProcessBatches = async () => {
     return { count: 0 };
   }
 
-  // 2. Delete physical directories from filesystem (NAS root and legacy local paths)
+  // 2. Delete database records FIRST to prevent ghost records
+  const result = await prisma.amazonProcessBatch.deleteMany({
+    where: {
+      expiresAt: { lte: istNow },
+    },
+  });
+
+  // 3. Delete physical directories from filesystem (NAS root and legacy local paths)
   for (const batch of expiredBatches) {
     const candidateDirs = new Set();
     try {
@@ -253,22 +258,57 @@ export const deleteExpiredAmazonProcessBatches = async () => {
       try {
         if (fs.existsSync(dir)) {
           fs.rmSync(dir, { recursive: true, force: true });
-          console.log(`[AmazonBatch Cleanup] Deleted folder: ${dir}`);
+          console.log(`[AmazonBatch Cleanup] Deleted folder for batch: ${batch.id}`); // Redacted full path
         }
       } catch (e) {
-        console.warn(`[AmazonBatch Cleanup] Failed to delete folder ${dir} for batch ${batch.id}:`, e);
+        console.warn(`[AmazonBatch Cleanup] Failed to delete folder for batch ${batch.id}:`, e.message); // Added .message
       }
     }
   }
 
-  // 3. Delete database records
-  const result = await prisma.amazonProcessBatch.deleteMany({
-    where: {
-      expiresAt: { lte: istNow },
-    },
-  });
-
   return result;
+};
+
+/**
+ * Delete physical directories on NAS/disk that are older than 24h and have no matching DB record.
+ * This cleans up orphaned chunks from failed uploads.
+ */
+export const deleteOrphanedAmazonBatchFolders = async () => {
+  try {
+    const rootDir = getAmazonBatchRootDir(); // Gets the root directory
+    if (!fs.existsSync(rootDir)) return;
+
+    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const dirs = fs.readdirSync(rootDir);
+
+    let deletedCount = 0;
+    for (const dirName of dirs) {
+      if (!dirName.startsWith("batch_")) continue; // Only check batch folders
+
+      const fullPath = path.join(rootDir, dirName);
+      const stat = fs.statSync(fullPath);
+
+      if (stat.isDirectory() && (now - stat.mtimeMs) > ONE_DAY_MS) {
+        // Check if a DB record exists
+        const batchRecord = await prisma.amazonProcessBatch.findUnique({
+          where: { id: dirName },
+          select: { id: true }
+        });
+
+        if (!batchRecord) {
+          // Orphaned folder older than 24h, safe to delete
+          fs.rmSync(fullPath, { recursive: true, force: true });
+          console.log(`[AmazonBatch Cleanup] Deleted ORPHANED folder: ${fullPath}`);
+          deletedCount++;
+        }
+      }
+    }
+    return { count: deletedCount };
+  } catch (err) {
+    console.error("[AmazonBatch Cleanup] Orphaned folder cleanup failed:", err);
+    return { count: 0 };
+  }
 };
 
 /**
@@ -337,10 +377,10 @@ export const deleteAmazonBatch = async (userId, batchId) => {
     try {
       if (fs.existsSync(dir)) {
         fs.rmSync(dir, { recursive: true, force: true });
-        console.log(`[AmazonBatch Cleanup] Deleted folder: ${dir}`);
+        console.log(`[AmazonBatch Cleanup] Deleted folder for batch: ${batch.id}`);
       }
     } catch (e) {
-      console.warn(`[AmazonBatch Cleanup] Failed to delete folder ${dir} for batch ${batch.id}:`, e);
+      console.warn(`[AmazonBatch Cleanup] Failed to delete folder for batch ${batch.id}:`, e.message);
     }
   }
 

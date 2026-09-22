@@ -52,7 +52,11 @@ export const getAmazonBatchDir = (batchId) => {
     }
     return batchDir;
   } catch (err) {
-    console.warn(`[AmazonBatch NAS] Failed to access/create NAS directory (${batchDir}): ${err.message}. Using fallback.`);
+    if (err.code !== 'EEXIST') {
+      console.warn(`[AmazonBatch NAS] Failed to access/create NAS directory (${batchDir}): ${err.message}. Using fallback.`);
+    } else {
+      return batchDir;
+    }
     
     // Tier 1 Fallback: Check D:\amazon-batches (if local Windows D: drive exists)
     try {
@@ -62,6 +66,8 @@ export const getAmazonBatchDir = (batchId) => {
       }
       return driveDFallback;
     } catch (e) {
+      if (e.code === 'EEXIST') return path.join("D:\\amazon-batches", safeBatchId);
+      console.warn(`[AmazonBatch NAS Tier 1] Fallback failed:`, e.message);
       // Tier 2 Fallback: Local project uploads directory
       const localDir = path.resolve(process.cwd(), "public", "uploads", "amazon-batches", safeBatchId);
       if (!fs.existsSync(localDir)) {
@@ -93,7 +99,9 @@ export const resolveBatchFilePath = (storedPath, batchId, defaultFileName) => {
       if (fs.existsSync(candidatePath)) {
         return candidatePath;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn("[AmazonBatch NAS] resolve fallback 1 error:", e.message);
+    }
 
     // 3. Check D:\amazon-batches (where previous batches were stored)
     try {
@@ -101,7 +109,9 @@ export const resolveBatchFilePath = (storedPath, batchId, defaultFileName) => {
       if (fs.existsSync(driveDCandidate)) {
         return driveDCandidate;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn("[AmazonBatch NAS] resolve fallback 2 error:", e.message);
+    }
 
     // 4. Check legacy project public/uploads directory
     try {
@@ -109,7 +119,9 @@ export const resolveBatchFilePath = (storedPath, batchId, defaultFileName) => {
       if (fs.existsSync(legacyCandidate)) {
         return legacyCandidate;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn("[AmazonBatch NAS] resolve fallback 3 error:", e.message);
+    }
   }
 
   return storedPath;
