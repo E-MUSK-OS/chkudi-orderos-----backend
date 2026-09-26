@@ -4,6 +4,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 
 import app from "./app.js";
+import "./crons/amazonAnalytics.cron.js";
 import { initSocket } from "./socket/socket.js";
 
 const PORT = process.env.PORT || 5000;

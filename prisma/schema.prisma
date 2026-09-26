@@ -49,28 +49,31 @@ model User {
   lockedAt     DateTime?
   lockedReason String?
 
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  refreshTokens       RefreshToken[]
-  vmsscans            VMSScan[]
-  operators           Operator[]
-  accounts            Account[]
-  wallet              Wallet?
-  tagLoops            TagLoop[]
-  tags                Tag[]
-  notifications       Notification[]
-  warehouses          Warehouse[]
-  stockTransfers      StockTransfer[]
-  products            Product[]
-  productInventories  ProductInventory[]
-  skuMappings         SkuMapping[]
-  sheetDrafts         SheetDraft[]
-  marketplaceAccounts MarketplaceAccount[]
-  orders              Order[]
-  labelTemplates      LabelTemplate[]
-  asinImports         AsinImport[]
-  amazonOrders        AmazonOrder[]
-  amazonProcessBatches AmazonProcessBatch[]
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  refreshTokens          RefreshToken[]
+  vmsscans               VMSScan[]
+  operators              Operator[]
+  accounts               Account[]
+  wallet                 Wallet?
+  tagLoops               TagLoop[]
+  tags                   Tag[]
+  notifications          Notification[]
+  warehouses             Warehouse[]
+  stockTransfers         StockTransfer[]
+  products               Product[]
+  productInventories     ProductInventory[]
+  skuMappings            SkuMapping[]
+  sheetDrafts            SheetDraft[]
+  marketplaceAccounts    MarketplaceAccount[]
+  orders                 Order[]
+  labelTemplates         LabelTemplate[]
+  asinImports            AsinImport[]
+  amazonOrders           AmazonOrder[]
+  amazonProcessBatches   AmazonProcessBatch[]
+  amazonAnalytics        AmazonAnalytics[]
+  amazonAnalyticsSetting AmazonAnalyticsSetting?
+  amazonAnalyticsHistory AmazonAnalyticsHistory[]
 }
 
 enum Role {
@@ -111,9 +114,9 @@ model VMSScan {
 
   trackingId String
 
-  videoUrl     String?
-  thumbnailUrl String?
-  filePath     String?
+  videoUrl      String?
+  thumbnailUrl  String?
+  filePath      String?
   thumbnailPath String?
 
   publicId String?
@@ -556,7 +559,7 @@ model Product {
 
   asin            String?
   rackAddress     String?
-  generateBarcode String?   @default("No")
+  generateBarcode String? @default("No")
   mrp             Float?
   hsnCode         String?
   gstRate         Float?
@@ -638,7 +641,7 @@ model ProductVariant {
   variantSku      String
   asin            String?
   rackAddress     String?
-  generateBarcode String?   @default("No")
+  generateBarcode String? @default("No")
 
   isActive Boolean @default(true)
 
@@ -1036,20 +1039,20 @@ enum PaymentStatus {
 model LabelTemplate {
   id String @id @default(cuid())
 
-  name String
-  marketplaceId String?
+  name               String
+  marketplaceId      String?
   backgroundImageUrl String?
-  thumbnailUrl String?
+  thumbnailUrl       String?
 
   layoutJson Json
-  settings Json
+  settings   Json
 
   userId String
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@index([userId])
 }
 
@@ -1058,18 +1061,18 @@ model LabelTemplate {
 // ==================================================================================
 
 model AsinImport {
-  id              String   @id @default(cuid())
+  id String @id @default(cuid())
 
   asin            String
   sku             String
   generateBarcode String?
   rackAddress     String?
 
-  userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([asin])
@@ -1081,23 +1084,23 @@ model AsinImport {
 // ==================================================================================
 
 model AmazonOrder {
-  id                String   @id @default(cuid())
+  id String @id @default(cuid())
 
-  invoice           String   // Invoices
-  orderId           String   // Amazon Order ID
-  awb               String   // AWB Tracking
-  asin              String   // ASIN
-  sellerSku         String   // Seller SKU
-  customer          String   // Customer
+  invoice   String // Invoices
+  orderId   String // Amazon Order ID
+  awb       String // AWB Tracking
+  asin      String // ASIN
+  sellerSku String // Seller SKU
+  customer  String // Customer
 
-  packingScanStatus String   @default("PENDING") // "PENDING" or "SCANNED"
+  packingScanStatus String @default("PENDING") // "PENDING" or "SCANNED"
 
-  userId            String
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  expiresAt         DateTime // 7 days expiration timestamp
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  expiresAt DateTime // 7 days expiration timestamp
 
   @@index([userId])
   @@index([orderId])
@@ -1113,21 +1116,21 @@ model AmazonOrder {
 // ==================================================================================
 
 model AmazonProcessBatch {
-  id              String   @id @default(cuid())
+  id String @id @default(cuid())
 
-  batchNumber     String?
-  batchDate       DateTime // Date of the batch
+  batchNumber String?
+  batchDate   DateTime // Date of the batch
 
-  totalOrders     Int      @default(0)
-  matchedCount    Int      @default(0)
-  mismatchCount   Int      @default(0)
-  matchPercentage Float    @default(0)
+  totalOrders     Int   @default(0)
+  matchedCount    Int   @default(0)
+  mismatchCount   Int   @default(0)
+  matchPercentage Float @default(0)
 
-  pdfFileName     String?
-  zplFileName     String?
+  pdfFileName String?
+  zplFileName String?
 
-  summary         Json     // AmazonOrderSummary object
-  results         Json     // AmazonComparisonResult[] array (matched & comparison order records)
+  summary Json // AmazonOrderSummary object
+  results Json // AmazonComparisonResult[] array (matched & comparison order records)
 
   // Document URLs and relative file paths
   combinedPdfPath     String?
@@ -1141,12 +1144,12 @@ model AmazonProcessBatch {
   unmatchedZplPdfPath String?
   unmatchedZplPdfUrl  String?
 
-  userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  expiresAt       DateTime // 6:00 PM on the 7th day
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  expiresAt DateTime // 6:00 PM on the 7th day
 
   @@index([userId])
   @@index([batchDate])
@@ -1155,4 +1158,82 @@ model AmazonProcessBatch {
   @@map("amazon_process_batches")
 }
 
+// ==================================================================================
+// ============================= AMAZON ANALYTICS MODEL =============================
+// ==================================================================================
 
+model AmazonAnalytics {
+  id String @id @default(cuid())
+
+  sku String
+  url String
+
+  // Scraped Data
+  asin           String?
+  bsrCategory    String?
+  bsrSubcategory String?
+  rating         Float?
+  reviewCount    Int?
+  lastScrapedAt  DateTime?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  
+  history        AmazonAnalyticsHistory[]
+
+  @@unique([userId, sku])
+  @@index([userId])
+  @@index([sku])
+  @@map("amazon_analytics")
+}
+
+// ==================================================================================
+// ========================= AMAZON ANALYTICS SETTING MODEL =========================
+// ==================================================================================
+
+model AmazonAnalyticsSetting {
+  id String @id @default(cuid())
+
+  userId String @unique
+  time   String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("amazon_analytics_settings")
+}
+
+// ==================================================================================
+// ========================= AMAZON ANALYTICS HISTORY MODEL =========================
+// ==================================================================================
+
+model AmazonAnalyticsHistory {
+  id                String   @id @default(cuid())
+
+  amazonAnalyticsId String
+  amazonAnalytics   AmazonAnalytics @relation(fields: [amazonAnalyticsId], references: [id], onDelete: Cascade)
+
+  userId            String
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  sellerSku         String
+  dateString        String
+
+  asin              String?
+  clothingRank      String?
+  rank              String?
+  reviews           Int?
+  rating            Float?
+
+  createdAt         DateTime @default(now())
+
+  @@unique([amazonAnalyticsId, dateString])
+  @@index([amazonAnalyticsId])
+  @@map("amazon_analytics_history")
+}

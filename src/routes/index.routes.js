@@ -23,6 +23,7 @@ import labelRoutes from "./label.route.js";
 import asinImportRoutes from "./asinImport.routes.js";
 import amazonOrderRoutes from "./amazonOrder.routes.js";
 import amazonBatchChunkRoutes from "./amazonBatchChunk.routes.js";
+import amazonAnalyticsRoutes from "./amazonAnalytics.routes.js";
 
 const router = Router();
 
@@ -49,6 +50,7 @@ router.use("/labels", labelRoutes);
 router.use("/asin-imports", asinImportRoutes);
 router.use("/amazon-orders/batch-chunks", amazonBatchChunkRoutes);
 router.use("/amazon-orders", amazonOrderRoutes);
+router.use("/amazon-analytics", amazonAnalyticsRoutes);
 
 export default router;
 
