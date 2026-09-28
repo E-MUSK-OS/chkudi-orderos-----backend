@@ -69,6 +69,7 @@ model User {
   orders                 Order[]
   labelTemplates         LabelTemplate[]
   asinImports            AsinImport[]
+  myntraImports          MyntraImport[]
   amazonOrders           AmazonOrder[]
   amazonProcessBatches   AmazonProcessBatch[]
   amazonAnalytics        AmazonAnalytics[]
@@ -1077,6 +1078,29 @@ model AsinImport {
   @@index([userId])
   @@index([asin])
   @@index([sku])
+}
+
+// ==================================================================================
+// ============================ MYNTRA IMPORT MODEL ================================
+// ==================================================================================
+model MyntraImport {
+  id               String   @id @default(cuid())
+  rackAddress      String?
+  myntraSku        String
+  sellerSku        String?
+  asin             String?
+  generatedBarcode String?
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([userId])
+  @@index([myntraSku])
+  @@index([sellerSku])
+  @@index([asin])
+  @@index([generatedBarcode])
+  @@map("myntra_imports")
 }
 
 // ==================================================================================
