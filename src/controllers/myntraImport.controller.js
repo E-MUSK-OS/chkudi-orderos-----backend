@@ -114,13 +114,13 @@ export const clearAllMyntraImports = async (req, res, next) => {
 export const createMyntraImport = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { myntraSku, sellerSku, asin, generatedBarcode, rackAddress } = req.body;
+    const { myntraSku, sellerSku, rackAddress } = req.body;
+    const generateBarcode = req.body.generateBarcode || req.body.generatedBarcode;
 
     const result = await createMyntraImportService(userId, {
       myntraSku,
       sellerSku,
-      asin,
-      generatedBarcode,
+      generateBarcode,
       rackAddress,
     });
 
@@ -141,13 +141,13 @@ export const updateMyntraImport = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const { id } = req.params;
-    const { myntraSku, sellerSku, asin, generatedBarcode, rackAddress } = req.body;
+    const { myntraSku, sellerSku, rackAddress } = req.body;
+    const generateBarcode = req.body.generateBarcode || req.body.generatedBarcode;
 
     await updateMyntraImportService(id, userId, {
       myntraSku,
       sellerSku,
-      asin,
-      generatedBarcode,
+      generateBarcode,
       rackAddress,
     });
 

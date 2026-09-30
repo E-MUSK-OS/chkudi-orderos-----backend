@@ -59,10 +59,9 @@ export const importMyntraFromExcelService = async (userId, fileBuffer) => {
   const rackAliases = ["rackaddress", "rack", "racklocation", "location", "shelf"];
   const myntraSkuAliases = ["myntrasku", "myntraskucode", "platformsku", "sku"];
   const sellerSkuAliases = ["sellersku", "sellerskucode", "mastersku", "productsku"];
-  const asinAliases = ["asin", "amazonasin", "asincode"];
   const barcodeAliases = [
-    "generatedbarcode",
     "generatebarcode",
+    "generatedbarcode",
     "genratebarcode",
     "barcode",
     "barcodesku",
@@ -77,11 +76,10 @@ export const importMyntraFromExcelService = async (userId, fileBuffer) => {
     let rackAddress = getColValue(row, rackAliases);
     let myntraSku = getColValue(row, myntraSkuAliases);
     let sellerSku = getColValue(row, sellerSkuAliases);
-    let asin = getColValue(row, asinAliases);
-    let generatedBarcode = getColValue(row, barcodeAliases);
+    let generateBarcode = getColValue(row, barcodeAliases);
 
     // Positional fallback if headers did not match named keys
-    // Demo sheet order: Rack Address (0), Myntra SKU (1), Seller SKU (2), ASIN (3), Generated Barcode (4)
+    // Format: Rack Address (0), Myntra SKU (1), Seller SKU (2), Generate Barcode (3 or 4)
     if (!myntraSku && !sellerSku) {
       const col0 = String(row[0] ?? "").trim();
       const col1 = String(row[1] ?? "").trim();
@@ -93,8 +91,7 @@ export const importMyntraFromExcelService = async (userId, fileBuffer) => {
         rackAddress = col0;
         myntraSku = col1 || col2;
         sellerSku = col2 || col1;
-        asin = col3 || null;
-        generatedBarcode = col4 || sellerSku || myntraSku;
+        generateBarcode = col3 || col4 || sellerSku || myntraSku;
       }
     }
 
@@ -106,9 +103,8 @@ export const importMyntraFromExcelService = async (userId, fileBuffer) => {
       rackAddress: rackAddress || null,
       myntraSku: myntraSku.trim(),
       sellerSku: sellerSku ? sellerSku.trim() : null,
-      asin: asin ? asin.trim() : null,
-      generatedBarcode: generatedBarcode
-        ? generatedBarcode.trim()
+      generateBarcode: generateBarcode
+        ? generateBarcode.trim()
         : sellerSku
         ? sellerSku.trim()
         : myntraSku.trim(),
@@ -176,9 +172,9 @@ export const updateMyntraImportService = async (id, userId, data) => {
   const updateData = {};
   if (data.myntraSku !== undefined) updateData.myntraSku = data.myntraSku.trim();
   if (data.sellerSku !== undefined) updateData.sellerSku = data.sellerSku?.trim() || null;
-  if (data.asin !== undefined) updateData.asin = data.asin?.trim() || null;
-  if (data.generatedBarcode !== undefined)
-    updateData.generatedBarcode = data.generatedBarcode?.trim() || null;
+  const barcode = data.generateBarcode !== undefined ? data.generateBarcode : data.generatedBarcode;
+  if (barcode !== undefined)
+    updateData.generateBarcode = barcode?.trim() || null;
   if (data.rackAddress !== undefined)
     updateData.rackAddress = data.rackAddress?.trim() || null;
 
@@ -192,6 +188,10 @@ export const createMyntraImportService = async (userId, data) => {
   if (!data.myntraSku || !data.myntraSku.trim()) {
     throw new Error("Myntra SKU is required.");
   }
-  return createMyntraImportRecord(userId, data);
+  const barcode = data.generateBarcode !== undefined ? data.generateBarcode : data.generatedBarcode;
+  return createMyntraImportRecord(userId, {
+    ...data,
+    generateBarcode: barcode,
+  });
 };
 

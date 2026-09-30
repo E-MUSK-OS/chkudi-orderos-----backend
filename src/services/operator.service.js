@@ -13,9 +13,9 @@ import { generateEmployeeCode } from "../utils/generateEmployeeCode.js";
 export const createOperatorService = async (userId, data) => {
   const totalOperators = await countOperatorsByUserId(userId);
 
-  if (totalOperators >= 5) {
+  if (totalOperators >= 10) {
     throw new Error(
-      "Maximum limit reached. You can create up to 5 operators only.",
+      "Maximum limit reached. You can create up to 10 operators only.",
     );
   }
 

@@ -37,6 +37,13 @@ export const bulkUpsertMyntraImports = async (userId, items) => {
       // 1. Fetch all existing records for this user, sorted newest first
       const existingRecords = await tx.myntraImport.findMany({
         where: { userId },
+        select: {
+          id: true,
+          myntraSku: true,
+          sellerSku: true,
+          rackAddress: true,
+          generateBarcode: true,
+        },
         orderBy: { updatedAt: "desc" },
       });
 
@@ -86,16 +93,12 @@ export const bulkUpsertMyntraImports = async (userId, items) => {
                 item.rackAddress !== undefined && item.rackAddress !== null && item.rackAddress !== ""
                   ? item.rackAddress
                   : existing.rackAddress,
-              asin:
-                item.asin !== undefined && item.asin !== null && item.asin !== ""
-                  ? item.asin
-                  : existing.asin,
-              generatedBarcode:
-                item.generatedBarcode !== undefined &&
-                item.generatedBarcode !== null &&
-                item.generatedBarcode !== ""
-                  ? item.generatedBarcode
-                  : existing.generatedBarcode,
+              generateBarcode:
+                (item.generateBarcode !== undefined ? item.generateBarcode : item.generatedBarcode) !== undefined &&
+                (item.generateBarcode !== undefined ? item.generateBarcode : item.generatedBarcode) !== null &&
+                (item.generateBarcode !== undefined ? item.generateBarcode : item.generatedBarcode) !== ""
+                  ? (item.generateBarcode || item.generatedBarcode)
+                  : existing.generateBarcode,
               updatedAt: new Date(),
             },
           });
@@ -106,8 +109,7 @@ export const bulkUpsertMyntraImports = async (userId, items) => {
             myntraSku: item.myntraSku,
             sellerSku: item.sellerSku || null,
             rackAddress: item.rackAddress || null,
-            asin: item.asin || null,
-            generatedBarcode: item.generatedBarcode || item.sellerSku || item.myntraSku,
+            generateBarcode: item.generateBarcode || item.generatedBarcode || item.sellerSku || item.myntraSku,
           });
         }
       }
@@ -121,6 +123,7 @@ export const bulkUpsertMyntraImports = async (userId, items) => {
               tx.myntraImport.update({
                 where: { id: u.id },
                 data: u.data,
+                select: { id: true },
               })
             )
           );
@@ -160,8 +163,7 @@ export const getMyntraImports = async (userId, { page, limit, search } = {}) => 
           OR: [
             { myntraSku: { contains: search, mode: "insensitive" } },
             { sellerSku: { contains: search, mode: "insensitive" } },
-            { asin: { contains: search, mode: "insensitive" } },
-            { generatedBarcode: { contains: search, mode: "insensitive" } },
+            { generateBarcode: { contains: search, mode: "insensitive" } },
             { rackAddress: { contains: search, mode: "insensitive" } },
           ],
         }
@@ -173,6 +175,16 @@ export const getMyntraImports = async (userId, { page, limit, search } = {}) => 
 
   const queryOptions = {
     where,
+    select: {
+      id: true,
+      myntraSku: true,
+      sellerSku: true,
+      generateBarcode: true,
+      rackAddress: true,
+      userId: true,
+      createdAt: true,
+      updatedAt: true,
+    },
     orderBy: { createdAt: "desc" },
   };
 
@@ -206,8 +218,7 @@ export const getAllMyntraMappingsByUser = async (userId) => {
       id: true,
       myntraSku: true,
       sellerSku: true,
-      asin: true,
-      generatedBarcode: true,
+      generateBarcode: true,
       rackAddress: true,
       createdAt: true,
     },
@@ -221,8 +232,7 @@ export const getAllMyntraMappingsByUser = async (userId) => {
         id: rec.id,
         myntraSku: rec.myntraSku,
         sellerSku: rec.sellerSku || "",
-        asin: rec.asin || "",
-        generatedBarcode: rec.generatedBarcode || rec.sellerSku || rec.myntraSku,
+        generateBarcode: rec.generateBarcode || rec.sellerSku || rec.myntraSku,
         rackAddress: rec.rackAddress || "",
       };
     }
@@ -296,8 +306,17 @@ export const createMyntraImportRecord = async (userId, data) => {
       userId,
       myntraSku: { equals: trimmedSku, mode: "insensitive" },
     },
+    select: {
+      id: true,
+      myntraSku: true,
+      sellerSku: true,
+      rackAddress: true,
+      generateBarcode: true,
+    },
     orderBy: { updatedAt: "desc" },
   });
+
+  const barcodeVal = (data.generateBarcode !== undefined ? data.generateBarcode : data.generatedBarcode)?.trim();
 
   if (existingRecords.length > 0) {
     const [primary, ...duplicates] = existingRecords;
@@ -315,13 +334,22 @@ export const createMyntraImportRecord = async (userId, data) => {
       data: {
         myntraSku: trimmedSku,
         sellerSku: data.sellerSku?.trim() || primary.sellerSku,
-        asin: data.asin?.trim() || primary.asin,
-        generatedBarcode:
-          data.generatedBarcode?.trim() ||
+        generateBarcode:
+          barcodeVal ||
           data.sellerSku?.trim() ||
-          primary.generatedBarcode,
+          primary.generateBarcode,
         rackAddress: data.rackAddress?.trim() || primary.rackAddress,
         updatedAt: new Date(),
+      },
+      select: {
+        id: true,
+        myntraSku: true,
+        sellerSku: true,
+        generateBarcode: true,
+        rackAddress: true,
+        userId: true,
+        createdAt: true,
+        updatedAt: true,
       },
     });
   }
@@ -331,12 +359,21 @@ export const createMyntraImportRecord = async (userId, data) => {
       userId,
       myntraSku: trimmedSku,
       sellerSku: data.sellerSku?.trim() || null,
-      asin: data.asin?.trim() || null,
-      generatedBarcode:
-        data.generatedBarcode?.trim() ||
+      generateBarcode:
+        barcodeVal ||
         data.sellerSku?.trim() ||
         trimmedSku,
       rackAddress: data.rackAddress?.trim() || null,
+    },
+    select: {
+      id: true,
+      myntraSku: true,
+      sellerSku: true,
+      generateBarcode: true,
+      rackAddress: true,
+      userId: true,
+      createdAt: true,
+      updatedAt: true,
     },
   });
 };
@@ -348,6 +385,10 @@ export const createMyntraImportRecord = async (userId, data) => {
 export const cleanDuplicateMyntraImports = async (userId) => {
   const allRecords = await prisma.myntraImport.findMany({
     where: { userId },
+    select: {
+      id: true,
+      myntraSku: true,
+    },
     orderBy: { updatedAt: "desc" },
   });
 

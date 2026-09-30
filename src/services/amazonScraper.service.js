@@ -27,54 +27,120 @@ export const scrapeAmazonProduct = async (url) => {
     const html = response.data;
     const $ = cheerio.load(html);
 
-    // 1. Extract ASIN (first try URL, then page)
+    // STEP 2: Detect CAPTCHA / Bot block and throw error so cron retries instead of saving empty data
+    if (typeof html === "string") {
+      const pageTitle = $("title").text().toLowerCase();
+      if (
+        html.includes("validateCaptcha") ||
+        html.includes("api-services-support@amazon.com") ||
+        html.includes("Type the characters you see in this image") ||
+        pageTitle.includes("robot check")
+      ) {
+        throw new Error("Amazon CAPTCHA / Bot block detected");
+      }
+    }
+
+    // 1. Extract ASIN (first try URL, then hidden inputs, then page details)
     let asin = null;
     const asinMatch = url.match(/\/dp\/([A-Z0-9]{10})/i) || url.match(/\/gp\/product\/([A-Z0-9]{10})/i);
     if (asinMatch) {
       asin = asinMatch[1];
     } else {
-      asin = $('#ASIN').val() || $('th:contains("ASIN")').next('td').text().trim();
+      asin = $('#ASIN').val() || $('input[name="ASIN"]').val() || $('th:contains("ASIN")').next('td').text().trim();
     }
 
-    // 2. Extract Best Sellers Rank
+    // STEP 3: Expand BSR Extraction to cover all Amazon layouts (Tech Specs, Detail Bullets, Product Facts)
     let bsrCategory = null;
     let bsrSubcategory = null;
-    
-    // Look for Best Sellers Rank table/list
-    const bsrText = $('th:contains("Best Sellers Rank")').next('td').text() 
-      || $('#SalesRank').text() 
-      || $('li:contains("Best Sellers Rank")').text();
 
-    if (bsrText) {
-      const cleanBsrText = bsrText.replace(/\s+/g, ' ').trim();
-      
-      // Match all instances of "#<number>" (e.g., #34,132 or #87)
-      const ranks = cleanBsrText.match(/#([\d,]+)/g);
-      if (ranks && ranks.length > 0) {
-        bsrCategory = ranks[0].replace(/[#,]/g, ''); // Extract 34132
-        if (ranks.length > 1) {
-          bsrSubcategory = ranks[1].replace(/[#,]/g, ''); // Extract 87
+    let bsrText = "";
+    const bsrSelectors = [
+      '#SalesRank',
+      '#detailBullets_feature_div li:contains("Best Sellers Rank")',
+      '#detailBulletsWrapper_feature_div li:contains("Best Sellers Rank")',
+      'th:contains("Best Sellers Rank") + td',
+      '#prodDetails th:contains("Best Sellers Rank") + td',
+      'tr:contains("Best Sellers Rank") td',
+      'li:contains("Best Sellers Rank")',
+      'div[id*="detailBullets"] li:contains("Best Sellers Rank")',
+      '.product-facts-detail:contains("Best Sellers Rank")'
+    ];
+
+    for (const sel of bsrSelectors) {
+      const el = $(sel);
+      if (el.length > 0) {
+        const text = el.text().replace(/\s+/g, ' ').trim();
+        if (text.includes('#')) {
+          bsrText = text;
+          break;
         }
       }
     }
 
-    // 3. Extract Rating
-    let rating = null;
-    const ratingText = $('#acrPopover').attr('title') || $('.a-icon-star .a-icon-alt').first().text();
-    if (ratingText) {
-      const ratingMatch = ratingText.match(/([\d.]+)\s*out of/);
-      if (ratingMatch) {
-        rating = parseFloat(ratingMatch[1]);
+    // Fallback: search whole page body text for Best Sellers Rank pattern
+    if (!bsrText) {
+      const bodyText = $('body').text().replace(/\s+/g, ' ');
+      const fallbackMatch = bodyText.match(/Best Sellers Rank\s*:?\s*([^;.]+?(?:\([^)]*\))?[^;.]*?in\s+[A-Za-z0-9&', -]+)/i);
+      if (fallbackMatch) {
+        bsrText = fallbackMatch[0];
       }
     }
 
-    // 4. Extract Review Count
+    if (bsrText) {
+      const cleanBsrText = bsrText.replace(/\s+/g, ' ').trim();
+      // Match all instances of "#<number>" (e.g., #34,132 or #87)
+      const ranks = cleanBsrText.match(/#([\d,]+)/g);
+      if (ranks && ranks.length > 0) {
+        bsrCategory = ranks[0].replace(/[#,]/g, '').trim();
+        if (ranks.length > 1) {
+          bsrSubcategory = ranks[1].replace(/[#,]/g, '').trim();
+        }
+      }
+    }
+
+    // STEP 3: Expand Rating Extraction (popover title, data-hook, star icons)
+    let rating = null;
+    const ratingCandidates = [
+      $('#acrPopover').attr('title'),
+      $('[data-hook="rating-out-of-text"]').first().text(),
+      $('#averageCustomerReviews .a-icon-star .a-icon-alt').first().text(),
+      $('#acrPopover .a-icon-star .a-icon-alt').first().text(),
+      $('.a-icon-star .a-icon-alt').first().text(),
+      $('span.a-icon-alt:contains("out of")').first().text(),
+    ];
+
+    for (const cand of ratingCandidates) {
+      if (cand) {
+        const ratingMatch = cand.match(/([\d.]+)\s*(?:out of|\/|\s*stars)/i);
+        if (ratingMatch) {
+          const parsed = parseFloat(ratingMatch[1]);
+          if (!isNaN(parsed) && parsed >= 0 && parsed <= 5) {
+            rating = parsed;
+            break;
+          }
+        }
+      }
+    }
+
+    // STEP 3: Expand Review Count Extraction (customer review link, total-review-count, ratings text)
     let reviewCount = null;
-    const reviewText = $('#acrCustomerReviewText').text() || $('#acrCustomerReviewLink').text();
-    if (reviewText) {
-      const reviewMatch = reviewText.replace(/,/g, '').match(/([\d]+)/);
-      if (reviewMatch) {
-        reviewCount = parseInt(reviewMatch[1], 10);
+    const reviewCandidates = [
+      $('#acrCustomerReviewText').first().text(),
+      $('[data-hook="total-review-count"]').first().text(),
+      $('#acrCustomerReviewLink').first().text(),
+      $('#averageCustomerReviews [data-hook="total-review-count"]').first().text(),
+    ];
+
+    for (const cand of reviewCandidates) {
+      if (cand) {
+        const reviewMatch = cand.replace(/,/g, '').match(/([\d]+)/);
+        if (reviewMatch) {
+          const parsed = parseInt(reviewMatch[1], 10);
+          if (!isNaN(parsed) && parsed >= 0) {
+            reviewCount = parsed;
+            break;
+          }
+        }
       }
     }
 

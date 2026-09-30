@@ -1084,22 +1084,20 @@ model AsinImport {
 // ============================ MYNTRA IMPORT MODEL ================================
 // ==================================================================================
 model MyntraImport {
-  id               String   @id @default(cuid())
-  rackAddress      String?
-  myntraSku        String
-  sellerSku        String?
-  asin             String?
-  generatedBarcode String?
-  userId           String
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id              String   @id @default(cuid())
+  rackAddress     String?
+  myntraSku       String
+  sellerSku       String?
+  generateBarcode String?
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([userId])
   @@index([myntraSku])
   @@index([sellerSku])
-  @@index([asin])
-  @@index([generatedBarcode])
+  @@index([generateBarcode])
   @@map("myntra_imports")
 }
 
