@@ -32,94 +32,102 @@ export const bulkUpsertMyntraImports = async (userId, items) => {
 
   const incomingItems = Array.from(incomingMap.values());
 
-  return prisma.$transaction(
-    async (tx) => {
-      // 1. Fetch all existing records for this user, sorted newest first
-      const existingRecords = await tx.myntraImport.findMany({
-        where: { userId },
-        select: {
-          id: true,
-          myntraSku: true,
-          sellerSku: true,
-          rackAddress: true,
-          generateBarcode: true,
-        },
-        orderBy: { updatedAt: "desc" },
+  // 1. Fetch all existing records for this user, sorted newest first
+  // Fetching outside the transaction to prevent locking the DB for too long
+  const existingRecords = await prisma.myntraImport.findMany({
+    where: { userId },
+    select: {
+      id: true,
+      myntraSku: true,
+      sellerSku: true,
+      rackAddress: true,
+      generateBarcode: true,
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  // Group existing records by lowercase myntraSku to detect and eliminate any duplicates
+  const existingBySku = new Map();
+  const duplicateIdsToDelete = [];
+
+  for (const rec of existingRecords) {
+    if (!rec.myntraSku) continue;
+    const key = rec.myntraSku.trim().toLowerCase();
+    if (!existingBySku.has(key)) {
+      existingBySku.set(key, rec);
+    } else {
+      // Extra duplicate found in DB for this SKU - mark for deletion
+      duplicateIdsToDelete.push(rec.id);
+    }
+  }
+
+  // Delete pre-existing duplicates if any
+  if (duplicateIdsToDelete.length > 0) {
+    // Delete in chunks of 1000 to avoid query size limits
+    for (let i = 0; i < duplicateIdsToDelete.length; i += 1000) {
+      await prisma.myntraImport.deleteMany({
+        where: { id: { in: duplicateIdsToDelete.slice(i, i + 1000) } },
       });
+    }
+  }
 
-      // Group existing records by lowercase myntraSku to detect and eliminate any duplicates
-      const existingBySku = new Map();
-      const duplicateIdsToDelete = [];
+  let createdCount = 0;
+  let updatedCount = 0;
+  const toCreate = [];
+  const toUpdate = [];
 
-      for (const rec of existingRecords) {
-        if (!rec.myntraSku) continue;
-        const key = rec.myntraSku.trim().toLowerCase();
-        if (!existingBySku.has(key)) {
-          existingBySku.set(key, rec);
-        } else {
-          // Extra duplicate found in DB for this SKU - mark for deletion
-          duplicateIdsToDelete.push(rec.id);
-        }
-      }
+  // 2. Separate incoming items into updates vs creates
+  for (const item of incomingItems) {
+    const key = item.myntraSku.toLowerCase();
+    const existing = existingBySku.get(key);
 
-      // Delete pre-existing duplicates if any
-      if (duplicateIdsToDelete.length > 0) {
-        await tx.myntraImport.deleteMany({
-          where: { id: { in: duplicateIdsToDelete } },
-        });
-      }
+    if (existing) {
+      // Update existing record with the latest values from the sheet
+      toUpdate.push({
+        id: existing.id,
+        data: {
+          myntraSku: item.myntraSku, // Latest casing
+          sellerSku:
+            item.sellerSku !== undefined && item.sellerSku !== null && item.sellerSku !== ""
+              ? item.sellerSku
+              : existing.sellerSku,
+          rackAddress:
+            item.rackAddress !== undefined && item.rackAddress !== null && item.rackAddress !== ""
+              ? item.rackAddress
+              : existing.rackAddress,
+          generateBarcode:
+            (item.generateBarcode !== undefined ? item.generateBarcode : item.generatedBarcode) !== undefined &&
+            (item.generateBarcode !== undefined ? item.generateBarcode : item.generatedBarcode) !== null &&
+            (item.generateBarcode !== undefined ? item.generateBarcode : item.generatedBarcode) !== ""
+              ? (item.generateBarcode || item.generatedBarcode)
+              : existing.generateBarcode,
+          updatedAt: new Date(),
+        },
+      });
+    } else {
+      // Brand new SKU
+      toCreate.push({
+        userId,
+        myntraSku: item.myntraSku,
+        sellerSku: item.sellerSku || null,
+        rackAddress: item.rackAddress || null,
+        generateBarcode: item.generateBarcode || item.generatedBarcode || item.sellerSku || item.myntraSku,
+      });
+    }
+  }
 
-      let createdCount = 0;
-      let updatedCount = 0;
-      const toCreate = [];
-      const toUpdate = [];
-
-      // 2. Separate incoming items into updates vs creates
-      for (const item of incomingItems) {
-        const key = item.myntraSku.toLowerCase();
-        const existing = existingBySku.get(key);
-
-        if (existing) {
-          // Update existing record with the latest values from the sheet
-          toUpdate.push({
-            id: existing.id,
-            data: {
-              myntraSku: item.myntraSku, // Latest casing
-              sellerSku:
-                item.sellerSku !== undefined && item.sellerSku !== null && item.sellerSku !== ""
-                  ? item.sellerSku
-                  : existing.sellerSku,
-              rackAddress:
-                item.rackAddress !== undefined && item.rackAddress !== null && item.rackAddress !== ""
-                  ? item.rackAddress
-                  : existing.rackAddress,
-              generateBarcode:
-                (item.generateBarcode !== undefined ? item.generateBarcode : item.generatedBarcode) !== undefined &&
-                (item.generateBarcode !== undefined ? item.generateBarcode : item.generatedBarcode) !== null &&
-                (item.generateBarcode !== undefined ? item.generateBarcode : item.generatedBarcode) !== ""
-                  ? (item.generateBarcode || item.generatedBarcode)
-                  : existing.generateBarcode,
-              updatedAt: new Date(),
-            },
-          });
-        } else {
-          // Brand new SKU
-          toCreate.push({
-            userId,
-            myntraSku: item.myntraSku,
-            sellerSku: item.sellerSku || null,
-            rackAddress: item.rackAddress || null,
-            generateBarcode: item.generateBarcode || item.generatedBarcode || item.sellerSku || item.myntraSku,
-          });
-        }
-      }
-
-      // Execute updates in batches of 50
-      if (toUpdate.length > 0) {
-        for (let i = 0; i < toUpdate.length; i += 50) {
-          const chunk = toUpdate.slice(i, i + 50);
+  // Execute updates in chunked transactions (Option 2)
+  if (toUpdate.length > 0) {
+    const CHUNK_SIZE = 500; // 500 items per transaction
+    for (let i = 0; i < toUpdate.length; i += CHUNK_SIZE) {
+      const chunk = toUpdate.slice(i, i + CHUNK_SIZE);
+      
+      await prisma.$transaction(async (tx) => {
+        // Further batch inside transaction to avoid connection pool exhaustion
+        for (let j = 0; j < chunk.length; j += 50) {
+          const smallChunk = chunk.slice(j, j + 50);
           await Promise.all(
-            chunk.map((u) =>
+            smallChunk.map((u) =>
               tx.myntraImport.update({
                 where: { id: u.id },
                 data: u.data,
@@ -128,28 +136,28 @@ export const bulkUpsertMyntraImports = async (userId, items) => {
             )
           );
         }
-        updatedCount = toUpdate.length;
-      }
-
-      // Execute creates in batch
-      if (toCreate.length > 0) {
-        const created = await tx.myntraImport.createMany({
-          data: toCreate,
-        });
-        createdCount = created.count;
-      }
-
-      return {
-        totalProcessed: incomingItems.length,
-        createdCount,
-        updatedCount,
-        duplicatesRemoved: duplicateIdsToDelete.length,
-      };
-    },
-    {
-      timeout: 60000,
+      });
     }
-  );
+    updatedCount = toUpdate.length;
+  }
+
+  // Execute creates in batch chunks
+  if (toCreate.length > 0) {
+    for (let i = 0; i < toCreate.length; i += 1000) {
+      const chunk = toCreate.slice(i, i + 1000);
+      const created = await prisma.myntraImport.createMany({
+        data: chunk,
+      });
+      createdCount += created.count;
+    }
+  }
+
+  return {
+    totalProcessed: incomingItems.length,
+    createdCount,
+    updatedCount,
+    duplicatesRemoved: duplicateIdsToDelete.length,
+  };
 };
 
 /**
