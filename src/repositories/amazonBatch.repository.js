@@ -112,6 +112,34 @@ export const getAmazonProcessBatchesHistory = async (userId, days = 7) => {
     },
   });
 
+  // Dynamically correct tainted JSON summary data using the strict AmazonOrder table truth
+  const batchIds = batches.map(b => b.id);
+  const printedOrders = await prisma.amazonOrder.findMany({
+    where: { userId, batchId: { in: batchIds } },
+    select: { batchId: true, orderId: true, awb: true }
+  });
+
+  const printsByBatch = {};
+  printedOrders.forEach(o => {
+    if (o.batchId) {
+      if (!printsByBatch[o.batchId]) printsByBatch[o.batchId] = [];
+      printsByBatch[o.batchId].push(o);
+    }
+  });
+
+  batches.forEach(b => {
+    const actualPrints = printsByBatch[b.id] || [];
+    if (b.summary) {
+      b.summary.printedCount = actualPrints.length;
+      b.summary.printedIndices = Array.from({ length: actualPrints.length }, (_, i) => i);
+      
+      if (actualPrints.length === 0) {
+        b.summary.printedOrderIds = [];
+        b.summary.printedAwbs = [];
+      }
+    }
+  });
+
   return batches;
 };
 
@@ -125,6 +153,30 @@ export const getAmazonProcessBatchById = async (userId, batchId) => {
       userId,
     },
   });
+
+  if (batch && batch.summary && Array.isArray(batch.results)) {
+    const actualPrints = await prisma.amazonOrder.findMany({
+      where: { userId, batchId: batch.id },
+      select: { awb: true, orderId: true }
+    });
+    
+    const printedAwbs = new Set(actualPrints.map(o => o.awb).filter(a => a && a !== "N/A" && a !== "-"));
+    const printedOrderIds = new Set(actualPrints.map(o => o.orderId).filter(o => o && o !== "N/A" && o !== "-"));
+    
+    const correctedIndices = [];
+    
+    batch.results.forEach(r => {
+      const rAwb = (r.awb || "").trim();
+      if (rAwb && rAwb !== "N/A" && rAwb !== "-" && printedAwbs.has(rAwb)) {
+        if (typeof r.index === "number") correctedIndices.push(r.index);
+      }
+    });
+
+    batch.summary.printedCount = actualPrints.length;
+    batch.summary.printedIndices = correctedIndices;
+    batch.summary.printedAwbs = Array.from(printedAwbs);
+    batch.summary.printedOrderIds = Array.from(printedOrderIds);
+  }
 
   return batch;
 };
@@ -158,8 +210,8 @@ export const updateAmazonBatchFiles = async (userId, batchId, fileUrls = {}, fil
 /**
  * Update printed orders and count inside an Amazon batch's summary JSON
  */
-export const updateBatchPrintedOrders = async (userId, batchId, orders = []) => {
-  if (!batchId || !orders || orders.length === 0) return null;
+export const updateBatchPrintedOrders = async (userId, batchId) => {
+  if (!batchId) return null;
 
   const batch = await prisma.amazonProcessBatch.findFirst({
     where: {
@@ -170,30 +222,34 @@ export const updateBatchPrintedOrders = async (userId, batchId, orders = []) => 
 
   if (!batch) return null;
 
-  const currentSummary =
-    typeof batch.summary === "object" && batch.summary !== null ? { ...batch.summary } : {};
+  // 1. Strictly filter the database by batchId instead of just matching AWBs globally
+  const printedOrders = await prisma.amazonOrder.findMany({
+    where: { userId, batchId },
+    select: { orderId: true, awb: true }
+  });
 
-  const printedOrderIds = new Set(currentSummary.printedOrderIds || []);
-  const printedAwbs = new Set(currentSummary.printedAwbs || []);
-  const printedIndices = new Set(currentSummary.printedIndices || []);
+  const printedOrderIds = new Set();
+  const printedAwbs = new Set();
+  const printedIndices = new Set();
 
-  orders.forEach((item) => {
-    const orderId = (item.orderId || item.orderNumber || "").trim();
+  printedOrders.forEach((item) => {
+    const orderId = (item.orderId || "").trim();
     const awb = (item.awb || "").trim();
     if (orderId && orderId !== "N/A" && orderId !== "-") printedOrderIds.add(orderId);
     if (awb && awb !== "N/A" && awb !== "-") printedAwbs.add(awb);
-    if (typeof item.index === "number") printedIndices.add(item.index);
   });
 
   if (Array.isArray(batch.results)) {
     batch.results.forEach((r) => {
       const rAwb = (r.awb || "").trim();
-      // Verify print strictly by AWB Tracking (not Amazon order id because same person can have multiple orders)
+      // Verify print strictly by AWB Tracking
       if (rAwb && rAwb !== "N/A" && rAwb !== "-" && printedAwbs.has(rAwb)) {
         if (typeof r.index === "number") printedIndices.add(r.index);
       }
     });
   }
+
+  const currentSummary = typeof batch.summary === "object" && batch.summary !== null ? { ...batch.summary } : {};
 
   const updatedSummary = {
     ...currentSummary,

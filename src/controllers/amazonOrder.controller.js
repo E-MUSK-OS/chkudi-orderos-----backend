@@ -39,7 +39,7 @@ export const savePrintedOrdersController = async (req, res, next) => {
 export const getAmazonOrdersController = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { search, packingScanStatus, date, page, limit } = req.query;
+    const { search, packingScanStatus, date, page, limit, batchId } = req.query;
 
     const result = await getAmazonOrdersService({
       userId,
@@ -48,6 +48,7 @@ export const getAmazonOrdersController = async (req, res, next) => {
       date,
       page,
       limit,
+      batchId,
     });
 
     res.status(200).json({

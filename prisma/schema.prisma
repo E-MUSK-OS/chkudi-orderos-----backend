@@ -1120,11 +1120,15 @@ model AmazonOrder {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  batchId String?
+  batch   AmazonProcessBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   expiresAt DateTime // 7 days expiration timestamp
 
   @@index([userId])
+  @@index([batchId])
   @@index([orderId])
   @@index([awb])
   @@index([packingScanStatus])
@@ -1168,6 +1172,8 @@ model AmazonProcessBatch {
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  amazonOrders AmazonOrder[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

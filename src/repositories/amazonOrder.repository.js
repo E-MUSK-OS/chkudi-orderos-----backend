@@ -6,7 +6,7 @@ import { getIstDate, calculateSeventhDay6Pm } from "./amazonBatch.repository.js"
  * Sets 7 days expiration timestamp (expiresAt: 6:00 PM on the 7th day in IST).
  * Preserves packingScanStatus if already SCANNED.
  */
-export const savePrintedAmazonOrders = async (userId, orders) => {
+export const savePrintedAmazonOrders = async (userId, orders, batchId) => {
   const now = new Date();
   const istNow = getIstDate(now);
   const expiresAt = calculateSeventhDay6Pm(now);
@@ -28,12 +28,13 @@ export const savePrintedAmazonOrders = async (userId, orders) => {
     // If neither valid order ID nor valid AWB is present, skip
     if (!hasValidOrderId && !hasValidAwb) continue;
 
-    // Verify print strictly by AWB Tracking (not Amazon order id because same person can have multiple orders)
+    // Verify print strictly by AWB Tracking AND Batch ID (Isolated)
     let existing = null;
     if (hasValidAwb) {
       existing = await prisma.amazonOrder.findFirst({
         where: {
           userId,
+          batchId,
           awb: cleanAwb,
         },
       });
@@ -41,6 +42,7 @@ export const savePrintedAmazonOrders = async (userId, orders) => {
       existing = await prisma.amazonOrder.findFirst({
         where: {
           userId,
+          batchId,
           orderId: cleanOrderId,
           awb: { in: ["N/A", "-", ""] },
         },
@@ -59,6 +61,7 @@ export const savePrintedAmazonOrders = async (userId, orders) => {
           sellerSku: cleanSellerSku && cleanSellerSku !== "N/A" ? cleanSellerSku : existing.sellerSku,
           customer: cleanCustomer && cleanCustomer !== "N/A" ? cleanCustomer : existing.customer,
           packingScanStatus: "PENDING",
+          batchId: batchId || existing.batchId,
           createdAt: istNow,
           updatedAt: istNow,
           expiresAt,
@@ -77,6 +80,7 @@ export const savePrintedAmazonOrders = async (userId, orders) => {
           sellerSku: cleanSellerSku || "N/A",
           customer: cleanCustomer || "N/A",
           packingScanStatus: status,
+          batchId: batchId || null,
           createdAt: istNow,
           updatedAt: istNow,
           expiresAt,
@@ -99,6 +103,7 @@ export const getAmazonOrders = async ({
   date,
   page = 1,
   limit = 50,
+  batchId,
 }) => {
   const skip = (Math.max(1, page) - 1) * limit;
 
@@ -127,6 +132,7 @@ export const getAmazonOrders = async ({
 
   const baseWhere = {
     userId,
+    ...(batchId ? { batchId } : {}),
     ...(dateFilter ? { createdAt: dateFilter } : {}),
   };
 

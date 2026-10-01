@@ -11,11 +11,11 @@ export const savePrintedOrdersService = async (userId, orders, batchId) => {
   if (!Array.isArray(orders) || orders.length === 0) {
     return { count: 0, orders: [] };
   }
-  const saved = await savePrintedAmazonOrders(userId, orders);
+  const saved = await savePrintedAmazonOrders(userId, orders, batchId);
 
   if (batchId) {
     try {
-      await updateBatchPrintedOrders(userId, batchId, orders);
+      await updateBatchPrintedOrders(userId, batchId);
     } catch (e) {
       console.warn("Failed to update batch printed orders in summary:", e);
     }
@@ -31,6 +31,7 @@ export const getAmazonOrdersService = async ({
   date,
   page,
   limit,
+  batchId,
 }) => {
   return getAmazonOrders({
     userId,
@@ -39,6 +40,7 @@ export const getAmazonOrdersService = async ({
     date,
     page: Number(page) || 1,
     limit: Number(limit) || 50,
+    batchId,
   });
 };
 

@@ -18,146 +18,76 @@ export const bulkUpsertMyntraImports = async (userId, items) => {
   }
 
   // Deduplicate items in the sheet by myntraSku (case-insensitive, last one in sheet wins)
-  const incomingMap = new Map();
+  const uniqueItemsMap = new Map();
+  const itemsWithoutSku = [];
+
   for (const item of items) {
     const rawSku = item.myntraSku ? String(item.myntraSku).trim() : "";
     if (rawSku) {
-      incomingMap.set(rawSku.toLowerCase(), {
-        ...item,
-        myntraSku: rawSku,
-        userId,
-      });
-    }
-  }
-
-  const incomingItems = Array.from(incomingMap.values());
-
-  // 1. Fetch all existing records for this user, sorted newest first
-  // Fetching outside the transaction to prevent locking the DB for too long
-  const existingRecords = await prisma.myntraImport.findMany({
-    where: { userId },
-    select: {
-      id: true,
-      myntraSku: true,
-      sellerSku: true,
-      rackAddress: true,
-      generateBarcode: true,
-    },
-    orderBy: { updatedAt: "desc" },
-  });
-
-  // Group existing records by lowercase myntraSku to detect and eliminate any duplicates
-  const existingBySku = new Map();
-  const duplicateIdsToDelete = [];
-
-  for (const rec of existingRecords) {
-    if (!rec.myntraSku) continue;
-    const key = rec.myntraSku.trim().toLowerCase();
-    if (!existingBySku.has(key)) {
-      existingBySku.set(key, rec);
+      uniqueItemsMap.set(rawSku.toLowerCase(), item);
     } else {
-      // Extra duplicate found in DB for this SKU - mark for deletion
-      duplicateIdsToDelete.push(rec.id);
+      itemsWithoutSku.push(item);
     }
   }
 
-  // Delete pre-existing duplicates if any
-  if (duplicateIdsToDelete.length > 0) {
-    // Delete in chunks of 1000 to avoid query size limits
-    for (let i = 0; i < duplicateIdsToDelete.length; i += 1000) {
-      await prisma.myntraImport.deleteMany({
-        where: { id: { in: duplicateIdsToDelete.slice(i, i + 1000) } },
+  const finalItems = Array.from(uniqueItemsMap.values());
+  const skusToLower = Array.from(uniqueItemsMap.keys());
+
+  return prisma.$transaction(async (tx) => {
+    let deletedCount = 0;
+    if (skusToLower.length > 0) {
+      // Find all existing records for this user
+      const existingRecords = await tx.myntraImport.findMany({
+        where: { userId },
+        select: { id: true, myntraSku: true },
       });
-    }
-  }
 
-  let createdCount = 0;
-  let updatedCount = 0;
-  const toCreate = [];
-  const toUpdate = [];
+      // Filter to find the ones to delete (case-insensitive match)
+      const idsToDelete = existingRecords
+        .filter(record => record.myntraSku && skusToLower.includes(record.myntraSku.trim().toLowerCase()))
+        .map(record => record.id);
 
-  // 2. Separate incoming items into updates vs creates
-  for (const item of incomingItems) {
-    const key = item.myntraSku.toLowerCase();
-    const existing = existingBySku.get(key);
-
-    if (existing) {
-      // Update existing record with the latest values from the sheet
-      toUpdate.push({
-        id: existing.id,
-        data: {
-          myntraSku: item.myntraSku, // Latest casing
-          sellerSku:
-            item.sellerSku !== undefined && item.sellerSku !== null && item.sellerSku !== ""
-              ? item.sellerSku
-              : existing.sellerSku,
-          rackAddress:
-            item.rackAddress !== undefined && item.rackAddress !== null && item.rackAddress !== ""
-              ? item.rackAddress
-              : existing.rackAddress,
-          generateBarcode:
-            (item.generateBarcode !== undefined ? item.generateBarcode : item.generatedBarcode) !== undefined &&
-            (item.generateBarcode !== undefined ? item.generateBarcode : item.generatedBarcode) !== null &&
-            (item.generateBarcode !== undefined ? item.generateBarcode : item.generatedBarcode) !== ""
-              ? (item.generateBarcode || item.generatedBarcode)
-              : existing.generateBarcode,
-          updatedAt: new Date(),
-        },
-      });
-    } else {
-      // Brand new SKU
-      toCreate.push({
-        userId,
-        myntraSku: item.myntraSku,
-        sellerSku: item.sellerSku || null,
-        rackAddress: item.rackAddress || null,
-        generateBarcode: item.generateBarcode || item.generatedBarcode || item.sellerSku || item.myntraSku,
-      });
-    }
-  }
-
-  // Execute updates in chunked transactions (Option 2)
-  if (toUpdate.length > 0) {
-    const CHUNK_SIZE = 500; // 500 items per transaction
-    for (let i = 0; i < toUpdate.length; i += CHUNK_SIZE) {
-      const chunk = toUpdate.slice(i, i + CHUNK_SIZE);
-      
-      await prisma.$transaction(async (tx) => {
-        // Further batch inside transaction to avoid connection pool exhaustion
-        for (let j = 0; j < chunk.length; j += 50) {
-          const smallChunk = chunk.slice(j, j + 50);
-          await Promise.all(
-            smallChunk.map((u) =>
-              tx.myntraImport.update({
-                where: { id: u.id },
-                data: u.data,
-                select: { id: true },
-              })
-            )
-          );
+      if (idsToDelete.length > 0) {
+        // Delete in chunks if there are too many (SQLite/Postgres limits)
+        for (let i = 0; i < idsToDelete.length; i += 1000) {
+          const res = await tx.myntraImport.deleteMany({
+            where: { id: { in: idsToDelete.slice(i, i + 1000) } },
+          });
+          deletedCount += res.count;
         }
-      });
+      }
     }
-    updatedCount = toUpdate.length;
-  }
 
-  // Execute creates in batch chunks
-  if (toCreate.length > 0) {
-    for (let i = 0; i < toCreate.length; i += 1000) {
-      const chunk = toCreate.slice(i, i + 1000);
-      const created = await prisma.myntraImport.createMany({
-        data: chunk,
-      });
-      createdCount += created.count;
+    // Prepare objects for creation
+    const allItemsToCreate = [...finalItems, ...itemsWithoutSku].map(item => ({
+      userId,
+      myntraSku: item.myntraSku ? String(item.myntraSku).trim() : "",
+      sellerSku: item.sellerSku || null,
+      rackAddress: item.rackAddress || null,
+      generateBarcode: item.generateBarcode || item.generatedBarcode || item.sellerSku || item.myntraSku || null,
+    }));
+
+    let createdCount = 0;
+    if (allItemsToCreate.length > 0) {
+      // Create in chunks of 1000
+      for (let i = 0; i < allItemsToCreate.length; i += 1000) {
+        const chunk = allItemsToCreate.slice(i, i + 1000);
+        const created = await tx.myntraImport.createMany({
+          data: chunk,
+        });
+        createdCount += created.count;
+      }
     }
-  }
-
-  return {
-    totalProcessed: incomingItems.length,
-    createdCount,
-    updatedCount,
-    duplicatesRemoved: duplicateIdsToDelete.length,
-  };
+    
+    return {
+      totalProcessed: items.length,
+      createdCount: createdCount,
+      updatedCount: deletedCount, // We report deleted ones as updated since they were replaced
+      duplicatesRemoved: deletedCount, 
+    };
+  }, {
+    timeout: 30000 // Give it 30 seconds for large files
+  });
 };
 
 /**
