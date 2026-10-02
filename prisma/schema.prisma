@@ -1196,6 +1196,9 @@ model AmazonAnalytics {
   sku String
   url String
 
+  operatorName   String?
+  day            String?
+
   // Scraped Data
   asin           String?
   bsrCategory    String?
@@ -1216,6 +1219,8 @@ model AmazonAnalytics {
   @@unique([userId, sku])
   @@index([userId])
   @@index([sku])
+  @@index([day])
+  @@index([operatorName])
   @@map("amazon_analytics")
 }
 

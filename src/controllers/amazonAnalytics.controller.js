@@ -5,9 +5,18 @@ const prisma = new PrismaClient();
 export const getAmazonAnalytics = async (req, res, next) => {
   try {
     const userId = req.user.id;
+    const { day, operator } = req.query;
+
+    const where = { userId };
+    if (day && day !== "all") {
+      where.day = { equals: day, mode: "insensitive" };
+    }
+    if (operator && operator !== "all") {
+      where.operatorName = { equals: operator, mode: "insensitive" };
+    }
 
     const data = await prisma.amazonAnalytics.findMany({
-      where: { userId },
+      where,
       include: { history: true },
       orderBy: { createdAt: "desc" },
     });
@@ -45,11 +54,15 @@ export const uploadAmazonAnalytics = async (req, res, next) => {
         },
         update: {
           url: item.url,
+          operatorName: item.operatorName !== undefined ? item.operatorName : undefined,
+          day: item.day !== undefined ? item.day : undefined,
         },
         create: {
           userId,
           sku: item.sku,
           url: item.url,
+          operatorName: item.operatorName || null,
+          day: item.day || null,
         },
       });
     });
