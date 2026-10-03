@@ -28,13 +28,12 @@ export const savePrintedAmazonOrders = async (userId, orders, batchId) => {
     // If neither valid order ID nor valid AWB is present, skip
     if (!hasValidOrderId && !hasValidAwb) continue;
 
-    // Verify print strictly by AWB Tracking AND Batch ID (Isolated)
+    // Verify print strictly by AWB Tracking (Isolated)
     let existing = null;
     if (hasValidAwb) {
       existing = await prisma.amazonOrder.findFirst({
         where: {
           userId,
-          batchId,
           awb: cleanAwb,
         },
       });
@@ -42,7 +41,6 @@ export const savePrintedAmazonOrders = async (userId, orders, batchId) => {
       existing = await prisma.amazonOrder.findFirst({
         where: {
           userId,
-          batchId,
           orderId: cleanOrderId,
           awb: { in: ["N/A", "-", ""] },
         },

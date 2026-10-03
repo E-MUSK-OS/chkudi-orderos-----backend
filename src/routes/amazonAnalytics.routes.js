@@ -12,4 +12,8 @@ router.post("/upload", amazonAnalyticsController.uploadAmazonAnalytics);
 router.get("/settings", amazonAnalyticsController.getSettings);
 router.put("/settings", amazonAnalyticsController.upsertSettings);
 
+router.delete("/bulk", amazonAnalyticsController.deleteBulkAmazonAnalytics);
+router.post("/bulk-delete", amazonAnalyticsController.deleteBulkAmazonAnalytics);
+router.delete("/:id", amazonAnalyticsController.deleteAmazonAnalytics);
+
 export default router;

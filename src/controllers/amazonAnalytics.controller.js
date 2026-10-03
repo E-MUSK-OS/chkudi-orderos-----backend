@@ -122,3 +122,67 @@ export const upsertSettings = async (req, res, next) => {
     next(error);
   }
 };
+
+export const deleteBulkAmazonAnalytics = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { ids } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        status: "fail",
+        message: "No record IDs provided for deletion",
+      });
+    }
+
+    const deleteResult = await prisma.amazonAnalytics.deleteMany({
+      where: {
+        id: { in: ids },
+        userId,
+      },
+    });
+
+    res.status(200).json({
+      status: "success",
+      message: `${deleteResult.count} record(s) deleted successfully`,
+      count: deleteResult.count,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteAmazonAnalytics = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
+
+    const existing = await prisma.amazonAnalytics.findFirst({
+      where: {
+        id,
+        userId,
+      },
+    });
+
+    if (!existing) {
+      return res.status(404).json({
+        status: "fail",
+        message: "Record not found or unauthorized",
+      });
+    }
+
+    await prisma.amazonAnalytics.delete({
+      where: {
+        id,
+      },
+    });
+
+    res.status(200).json({
+      status: "success",
+      message: "Amazon Analytics record deleted successfully",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
