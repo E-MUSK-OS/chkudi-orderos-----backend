@@ -87,6 +87,14 @@ export const updatePackingScanStatusByAwbController = async (req, res, next) => 
       });
     }
 
+    if (updated.alreadyScanned) {
+      return res.status(400).json({
+        success: false,
+        message: `Order is already scanned.`,
+        data: updated.order,
+      });
+    }
+
     res.status(200).json({
       success: true,
       message: `Order status updated to ${status}.`,

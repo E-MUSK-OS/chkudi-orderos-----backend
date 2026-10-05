@@ -23,7 +23,13 @@ export const savePrintedAmazonOrders = async (userId, orders, batchId) => {
     const status = item.packingScanStatus === "SCANNED" ? "SCANNED" : "PENDING";
 
     const hasValidOrderId = cleanOrderId && cleanOrderId.toUpperCase() !== "N/A" && cleanOrderId !== "-";
-    const hasValidAwb = cleanAwb && cleanAwb.toUpperCase() !== "N/A" && cleanAwb !== "-";
+    const hasValidAwb =
+      cleanAwb &&
+      cleanAwb.length >= 8 &&
+      cleanAwb.toUpperCase() !== "N/A" &&
+      cleanAwb !== "-" &&
+      !/^\d{3}-\d{7}-\d{7}$/.test(cleanAwb) &&
+      !/^B[0-9A-Z]{9}$/i.test(cleanAwb);
 
     // If neither valid order ID nor valid AWB is present, skip
     if (!hasValidOrderId && !hasValidAwb) continue;
@@ -224,6 +230,10 @@ export const updatePackingScanStatusByAwb = async (userId, awb, status = "SCANNE
   }
 
   if (!order) return null;
+
+  if (order.packingScanStatus === status) {
+    return { alreadyScanned: true, order };
+  }
 
   return prisma.amazonOrder.update({
     where: { id: order.id },
