@@ -5,8 +5,8 @@ import { getIstDate } from "../repositories/amazonBatch.repository.js";
 
 const prisma = new PrismaClient();
 
-// Run every minute
-cron.schedule("* * * * *", async () => {
+// Run every 30 minutes
+cron.schedule("*/30 * * * *", async () => {
   try {
     const now = new Date();
     // Convert to Indian Standard Time (IST, UTC+05:30)
@@ -15,31 +15,13 @@ cron.schedule("* * * * *", async () => {
     const minutes = String(istNow.getUTCMinutes()).padStart(2, "0");
     const currentTime = `${hours}:${minutes}`;
 
-    // Find settings that match the current time in IST
-    const settings = await prisma.amazonAnalyticsSetting.findMany({
-      where: { time: currentTime },
+    // Get all users who have products
+    const allUsersWithProducts = await prisma.amazonAnalytics.findMany({
+      select: { userId: true },
+      distinct: ['userId'],
     });
 
-    let userIdsToRun = settings.map(s => s.userId);
-
-    // If it is 11:00 AM IST, also run for all users who don't have a setting
-    if (currentTime === "11:00") {
-      const allUsersWithProducts = await prisma.amazonAnalytics.findMany({
-        select: { userId: true },
-        distinct: ['userId'],
-      });
-      
-      const allSettings = await prisma.amazonAnalyticsSetting.findMany({
-        select: { userId: true }
-      });
-      const usersWithSettings = new Set(allSettings.map(s => s.userId));
-
-      for (const p of allUsersWithProducts) {
-        if (!usersWithSettings.has(p.userId) && !userIdsToRun.includes(p.userId)) {
-          userIdsToRun.push(p.userId);
-        }
-      }
-    }
+    const userIdsToRun = allUsersWithProducts.map(p => p.userId);
 
     if (userIdsToRun.length === 0) return;
 

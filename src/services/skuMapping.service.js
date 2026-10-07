@@ -11,6 +11,24 @@ import prisma from "../config/prisma.js";
 import { AppError } from "../utils/AppError.js";
 import ExcelJS from "exceljs";
 
+const getCellValueAsString = (cell) => {
+  if (!cell || cell.value == null) return "";
+  if (typeof cell.value === "object") {
+    // If it's a rich text, formula, hyperlink, etc.
+    return cell.text || "";
+  }
+  return String(cell.value);
+};
+
+const getCellValueAsNumber = (cell) => {
+  if (!cell || cell.value == null || cell.value === "") return null;
+  if (typeof cell.value === "object") {
+    if (cell.value.result !== undefined) return Number(cell.value.result);
+    return Number(cell.text);
+  }
+  return Number(cell.value);
+};
+
 // ==================================================================================
 // ============================ GET SKU MAPPINGS ====================================
 // ==================================================================================
@@ -194,8 +212,7 @@ export const importSkuMappingService = async (userId, file) => {
   const headerMap = {};
 
   headerRow.eachCell((cell, columnNumber) => {
-    // headerMap[String(cell.value).trim()] = columnNumber;
-    const header = String(cell.value ?? "").trim();
+    const header = getCellValueAsString(cell).trim();
 
     if (header) {
       headerMap[header] = columnNumber;
@@ -223,51 +240,29 @@ export const importSkuMappingService = async (userId, file) => {
   worksheet.eachRow((row, rowNumber) => {
     if (rowNumber === 1) return;
 
-    const shortSku = String(row.getCell(headerMap["Short SKU"]).value ?? "")
+    const shortSku = getCellValueAsString(row.getCell(headerMap["Short SKU"]))
       .trim()
       .toUpperCase();
 
-    const barcodeSku = String(
-      row.getCell(headerMap["Barcode SKU"]).value ?? "",
-    ).trim();
+    const barcodeSku = getCellValueAsString(row.getCell(headerMap["Barcode SKU"])).trim();
 
-    const ordercookSku = String(
-      row.getCell(headerMap["OrderCook SKU"]).value ?? "",
-    ).trim();
+    const ordercookSku = getCellValueAsString(row.getCell(headerMap["OrderCook SKU"])).trim();
 
-    const brandName = String(
-      row.getCell(headerMap["Brand Name"]).value ?? "",
-    ).trim();
+    const brandName = getCellValueAsString(row.getCell(headerMap["Brand Name"])).trim();
 
-    const asinBarcode = String(
-      row.getCell(headerMap["Asin (Barcode)"]).value ?? "",
-    ).trim();
+    const asinBarcode = getCellValueAsString(row.getCell(headerMap["Asin (Barcode)"])).trim();
 
-    const color = String(row.getCell(headerMap["Color"]).value ?? "").trim();
+    const color = getCellValueAsString(row.getCell(headerMap["Color"])).trim();
 
-    const size = String(row.getCell(headerMap["Size"]).value ?? "").trim();
+    const size = getCellValueAsString(row.getCell(headerMap["Size"])).trim();
 
-    const fullSku = String(
-      row.getCell(headerMap["Full SKU"]).value ?? "",
-    ).trim();
+    const fullSku = getCellValueAsString(row.getCell(headerMap["Full SKU"])).trim();
 
-    const title = String(row.getCell(headerMap["Title"]).value ?? "").trim();
+    const title = getCellValueAsString(row.getCell(headerMap["Title"])).trim();
 
-    const qtyValue = row.getCell(headerMap["QTY"]).value;
+    const qty = getCellValueAsNumber(row.getCell(headerMap["QTY"]));
 
-    const qty =
-      qtyValue === null || qtyValue === undefined || qtyValue === ""
-        ? null
-        : Number(qtyValue);
-
-    const mrpValue = headerMap["MRP"]
-      ? row.getCell(headerMap["MRP"]).value
-      : null;
-
-    const mrp =
-      mrpValue === null || mrpValue === undefined || mrpValue === ""
-        ? null
-        : Number(mrpValue);
+    const mrp = headerMap["MRP"] ? getCellValueAsNumber(row.getCell(headerMap["MRP"])) : null;
 
     // Skip Empty Row
 
