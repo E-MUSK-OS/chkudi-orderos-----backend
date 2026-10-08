@@ -72,8 +72,14 @@ export const createProductSchema = z.object({
     .nullable(),
 
   mrp: z
-    .number()
-    .min(0, "MRP must be a non-negative number.")
+    .string()
+    .trim()
+    .optional()
+    .nullable(),
+
+  mfgMonth: z
+    .string()
+    .trim()
     .optional()
     .nullable(),
 
@@ -99,7 +105,10 @@ export const createProductSchema = z.object({
 // Update Product Validation
 // ======================================================
 
-export const updateProductSchema = createProductSchema.partial();
+export const updateProductSchema = createProductSchema.partial().extend({
+  mrp: z.string().trim().optional().nullable(),
+  mfgMonth: z.string().trim().optional().nullable(),
+});
 
 // ======================================================
 // Update Product Status Validation

@@ -6,6 +6,7 @@ import {
   deleteExpiredAmazonOrders,
 } from "../repositories/amazonOrder.repository.js";
 import { updateBatchPrintedOrders } from "../repositories/amazonBatch.repository.js";
+import { getIO } from "../socket/socket.js";
 
 export const savePrintedOrdersService = async (userId, orders, batchId) => {
   if (!Array.isArray(orders) || orders.length === 0) {
@@ -18,6 +19,19 @@ export const savePrintedOrdersService = async (userId, orders, batchId) => {
       await updateBatchPrintedOrders(userId, batchId);
     } catch (e) {
       console.warn("Failed to update batch printed orders in summary:", e);
+    }
+  }
+
+  if (saved.length > 0) {
+    try {
+      getIO()
+        .to(`user:${userId}`)
+        .emit("amazonOrderPrinted", {
+          batchId,
+          awbs: saved.map((o) => o.awb),
+        });
+    } catch (e) {
+      console.warn("Failed to emit amazonOrderPrinted socket event:", e);
     }
   }
 

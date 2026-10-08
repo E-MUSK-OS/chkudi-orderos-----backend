@@ -80,5 +80,17 @@ export const updateSkuMappingSchema = z.object({
 
   qty: z.number().int().min(0, "QTY cannot be negative.").optional().nullable(),
 
-  mrp: z.number().min(0, "MRP cannot be negative.").optional().nullable(),
+  mrp: z
+    .string()
+    .trim()
+    .optional()
+    .nullable()
+    .or(z.literal("")),
+
+  mfgMonth: z
+    .string()
+    .trim()
+    .optional()
+    .nullable()
+    .or(z.literal("")),
 });

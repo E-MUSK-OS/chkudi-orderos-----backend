@@ -372,7 +372,7 @@ export const importProductsFromExcelService = async (userId, fileBuffer) => {
     const rackAddress = getColValue(row, ["rackaddress", "rack", "racklocation"]) || "";
     
     const mrpRaw = getColValue(row, ["mrp", "price"]);
-    const mrp = mrpRaw ? parseFloat(mrpRaw) : undefined;
+    const mrp = mrpRaw ? parseFloat(String(mrpRaw).replace(/[\s,]/g, "")) : undefined;
 
     const hsnCode = getColValue(row, ["hsncode", "hsn"]) || "";
 

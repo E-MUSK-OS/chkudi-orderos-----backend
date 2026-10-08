@@ -22,11 +22,22 @@ const getCellValueAsString = (cell) => {
 
 const getCellValueAsNumber = (cell) => {
   if (!cell || cell.value == null || cell.value === "") return null;
-  if (typeof cell.value === "object") {
-    if (cell.value.result !== undefined) return Number(cell.value.result);
-    return Number(cell.text);
+  let val = cell.value;
+  
+  if (typeof val === "object") {
+    if (val.result !== undefined) {
+      val = val.result;
+    } else {
+      val = cell.text;
+    }
   }
-  return Number(cell.value);
+  
+  if (typeof val === "string") {
+    val = val.replace(/[\s,]/g, "");
+  }
+
+  const num = Number(val);
+  return isNaN(num) ? null : num;
 };
 
 // ==================================================================================
@@ -262,7 +273,8 @@ export const importSkuMappingService = async (userId, file) => {
 
     const qty = getCellValueAsNumber(row.getCell(headerMap["QTY"]));
 
-    const mrp = headerMap["MRP"] ? getCellValueAsNumber(row.getCell(headerMap["MRP"])) : null;
+    const mrp = headerMap["MRP"] ? getCellValueAsString(row.getCell(headerMap["MRP"])).trim() : null;
+    const mfgMonth = headerMap["MFG MTH"] ? getCellValueAsString(row.getCell(headerMap["MFG MTH"])).trim() : null;
 
     // Skip Empty Row
 
@@ -283,6 +295,7 @@ export const importSkuMappingService = async (userId, file) => {
       title,
       qty,
       mrp,
+      mfgMonth,
     });
   });
 
@@ -387,17 +400,7 @@ export const importSkuMappingService = async (userId, file) => {
           continue;
         }
 
-        if (row.mrp !== null && (!Number.isFinite(row.mrp) || row.mrp < 0)) {
-          failed++;
-
-          errors.push({
-            row: row.rowNumber,
-            shortSku: row.shortSku,
-            message: "MRP must be a valid non-negative number.",
-          });
-
-          continue;
-        }
+        // MRP Validation removed to allow any string format
 
         // if (!row.ordercookSku) {
         //   failed++;
@@ -438,6 +441,7 @@ export const importSkuMappingService = async (userId, file) => {
               title: row.title || null,
               qty: row.qty,
               mrp: row.mrp,
+              mfgMonth: row.mfgMonth || null,
             },
           });
 
@@ -476,6 +480,7 @@ export const importSkuMappingService = async (userId, file) => {
           title: row.title || null,
           qty: row.qty,
           mrp: row.mrp,
+          mfgMonth: row.mfgMonth || null,
         });
 
         inserted++;

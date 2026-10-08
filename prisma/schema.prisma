@@ -561,7 +561,8 @@ model Product {
   asin            String?
   rackAddress     String?
   generateBarcode String? @default("No")
-  mrp             Float?
+  mrp             String?
+  mfgMonth        String?
   hsnCode         String?
   gstRate         Float?
 
@@ -791,7 +792,8 @@ model SkuMapping {
   fullSku      String?
   title        String?
   qty          Int?
-  mrp          Float?
+  mrp          String?
+  mfgMonth     String?
 
   // ======================================================
   // System
