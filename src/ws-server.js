@@ -24,6 +24,12 @@ const io = new Server(httpServer, {
 io.on("connection", (socket) => {
   console.log("🟢 Socket connected:", socket.id);
 
+  const handshakeUserId = socket.handshake.auth?.userId || socket.handshake.query?.userId;
+  if (handshakeUserId) {
+    socket.join(`user:${handshakeUserId}`);
+    console.log(`👥 User ${handshakeUserId} auto-joined room user:${handshakeUserId} via handshake`);
+  }
+
   socket.on("join:user", (userId) => {
     if (!userId) return;
 

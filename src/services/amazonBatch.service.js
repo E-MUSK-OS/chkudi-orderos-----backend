@@ -10,6 +10,7 @@ import {
   deleteOrphanedAmazonBatchFolders,
 } from "../repositories/amazonBatch.repository.js";
 import { getAmazonBatchDir, resolveBatchFilePath } from "../utils/amazonBatchNasPath.js";
+import { getIO } from "../socket/socket.js";
 
 /**
  * Helper to construct public URL for a batch file
@@ -229,7 +230,14 @@ export const deleteExpiredBatchesService = async () => {
  * Delete a batch and its printed orders
  */
 export const deleteAmazonBatchService = async (userId, batchId) => {
-  return await deleteAmazonBatch(userId, batchId);
+  const result = await deleteAmazonBatch(userId, batchId);
+  try {
+    getIO().to(`user:${userId}`).emit("amazonBatchDeleted", { userId, batchId });
+    console.log(`📡 [Socket] Emitted amazonBatchDeleted to user:${userId} (Batch: ${batchId})`);
+  } catch (e) {
+    console.warn("Failed to emit amazonBatchDeleted socket event:", e);
+  }
+  return result;
 };
 
 /**

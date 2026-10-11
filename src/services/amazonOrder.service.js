@@ -24,12 +24,17 @@ export const savePrintedOrdersService = async (userId, orders, batchId) => {
 
   if (saved.length > 0) {
     try {
+      const payload = {
+        userId,
+        batchId,
+        count: saved.length,
+        awbs: saved.map((o) => o.awb),
+        orders: saved,
+      };
       getIO()
         .to(`user:${userId}`)
-        .emit("amazonOrderPrinted", {
-          batchId,
-          awbs: saved.map((o) => o.awb),
-        });
+        .emit("amazonOrderPrinted", payload);
+      console.log(`📡 [Socket] Emitted amazonOrderPrinted to user:${userId} (${saved.length} orders)`);
     } catch (e) {
       console.warn("Failed to emit amazonOrderPrinted socket event:", e);
     }
@@ -64,13 +69,34 @@ export const updatePackingScanStatusService = async ({
   awb,
   status = "SCANNED",
 }) => {
+  let updated = null;
   if (id) {
-    return updatePackingScanStatusById(userId, id, status);
+    updated = await updatePackingScanStatusById(userId, id, status);
+  } else if (awb) {
+    updated = await updatePackingScanStatusByAwb(userId, awb, status);
+  } else {
+    throw new Error("Either id or awb is required to update packing scan status");
   }
-  if (awb) {
-    return updatePackingScanStatusByAwb(userId, awb, status);
+
+  if (updated) {
+    try {
+      getIO()
+        .to(`user:${userId}`)
+        .emit("amazonOrderStatusUpdated", {
+          userId,
+          id: updated.id,
+          awb: updated.awb,
+          orderId: updated.orderId,
+          packingScanStatus: updated.packingScanStatus,
+          order: updated,
+        });
+      console.log(`📡 [Socket] Emitted amazonOrderStatusUpdated to user:${userId} (AWB: ${updated.awb}, status: ${updated.packingScanStatus})`);
+    } catch (e) {
+      console.warn("Failed to emit amazonOrderStatusUpdated socket event:", e);
+    }
   }
-  throw new Error("Either id or awb is required to update packing scan status");
+
+  return updated;
 };
 
 export const deleteExpiredOrdersService = async () => {
