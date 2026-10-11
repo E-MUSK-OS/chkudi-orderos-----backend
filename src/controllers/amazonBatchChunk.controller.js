@@ -1,4 +1,4 @@
-import fs from "fs";
+ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { Worker } from "worker_threads";
@@ -118,6 +118,62 @@ export const processBatchController = async (req, res, next) => {
       try {
         if (typeof summary === "string") summary = await parseJsonAsync(summary);
         if (typeof results === "string") results = await parseJsonAsync(results);
+
+        // Fetch SKUs from AsinImport for all ASINs in results to enforce database mapping over PDF extracted values
+        try {
+          const asinsInResults = [];
+          if (Array.isArray(results)) {
+            results.forEach(r => {
+              if (r.asin && r.asin !== "N/A" && !asinsInResults.includes(r.asin)) {
+                asinsInResults.push(r.asin);
+              }
+              if (r.items && Array.isArray(r.items)) {
+                r.items.forEach(item => {
+                  if (item.asin && item.asin !== "N/A" && !asinsInResults.includes(item.asin)) {
+                    asinsInResults.push(item.asin);
+                  }
+                });
+              }
+            });
+          }
+
+          if (asinsInResults.length > 0) {
+            const { default: prisma } = await import("../config/prisma.js");
+            const asinMappings = await prisma.asinImport.findMany({
+              where: {
+                userId,
+                asin: { in: asinsInResults }
+              }
+            });
+            
+            const asinToSkuMap = {};
+            asinMappings.forEach(mapping => {
+              if (mapping.sku) {
+                asinToSkuMap[mapping.asin] = mapping.sku;
+              }
+            });
+            
+            // Map the matched SKUs into the results array
+            if (Array.isArray(results)) {
+              results = results.map(r => {
+                if (r.asin && asinToSkuMap[r.asin]) {
+                  r.sellerSku = asinToSkuMap[r.asin];
+                }
+                if (r.items && Array.isArray(r.items)) {
+                  r.items = r.items.map(item => {
+                    if (item.asin && asinToSkuMap[item.asin]) {
+                      item.sku = asinToSkuMap[item.asin];
+                    }
+                    return item;
+                  });
+                }
+                return r;
+              });
+            }
+          }
+        } catch (dbError) {
+          console.error("Error fetching AsinImport mappings:", dbError);
+        }
 
         const uploadDir = getAmazonBatchDir(batchId);
         
