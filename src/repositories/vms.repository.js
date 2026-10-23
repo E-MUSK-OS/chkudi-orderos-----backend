@@ -90,6 +90,19 @@ export const getScanByTrackingId = async (trackingId) => {
   });
 };
 
+export const getScanByTrackingIdAndUser = async (trackingId, userId) => {
+  const where = { trackingId };
+  if (userId) {
+    where.userId = userId;
+  }
+  return await prisma.vMSScan.findFirst({
+    where,
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+};
+
 export const updateScan = async (id, data) => {
   return await prisma.vMSScan.update({
     where: {

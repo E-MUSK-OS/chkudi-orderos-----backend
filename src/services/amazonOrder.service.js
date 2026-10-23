@@ -78,7 +78,7 @@ export const updatePackingScanStatusService = async ({
     throw new Error("Either id or awb is required to update packing scan status");
   }
 
-  if (updated) {
+  if (updated && !updated.alreadyScanned) {
     try {
       getIO()
         .to(`user:${userId}`)

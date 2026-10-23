@@ -391,33 +391,13 @@ export const deleteAmazonBatch = async (userId, batchId) => {
     throw new Error("Batch not found or unauthorized");
   }
 
-  // 2. Extract AWBs to delete associated Amazon Orders
-  const awbsToDelete = new Set();
-  
-  if (batch.summary && Array.isArray(batch.summary.printedAwbs)) {
-    batch.summary.printedAwbs.forEach((awb) => {
-      if (awb && awb !== "N/A" && awb !== "-") awbsToDelete.add(awb);
-    });
-  }
-
-  if (Array.isArray(batch.results)) {
-    batch.results.forEach((r) => {
-      const rAwb = (r.awb || "").trim();
-      if (rAwb && rAwb !== "N/A" && rAwb !== "-") {
-        awbsToDelete.add(rAwb);
-      }
-    });
-  }
-
-  // 3. Delete associated printed Amazon Orders (restricted to this user)
-  if (awbsToDelete.size > 0) {
-    await prisma.amazonOrder.deleteMany({
-      where: {
-        userId, // STRICTLY limit to this user!
-        awb: { in: Array.from(awbsToDelete) },
-      },
-    });
-  }
+  // 3. Delete associated printed Amazon Orders strictly belonging to this batch (restricted to this user)
+  const deletedOrdersResult = await prisma.amazonOrder.deleteMany({
+    where: {
+      userId,
+      batchId: batch.id,
+    },
+  });
 
   // 4. Delete physical directories from filesystem
   const candidateDirs = new Set();
@@ -445,6 +425,6 @@ export const deleteAmazonBatch = async (userId, batchId) => {
     where: { id: batch.id }, // id is unique, but we already verified ownership above
   });
 
-  return { success: true, deletedBatchId: batch.id, deletedOrdersCount: awbsToDelete.size };
+  return { success: true, deletedBatchId: batch.id, deletedOrdersCount: deletedOrdersResult?.count || 0 };
 };
 

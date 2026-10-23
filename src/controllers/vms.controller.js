@@ -40,10 +40,11 @@ export const uploadRecording = async (req, res, next) => {
   // console.log(req.file);
   try {
     const body = uploadVMSSchema.parse(req.body);
+    const effectiveUserId = req.userId || req.user?.id || body.userId;
 
     const result = await uploadRecordingService({
       trackingId: body.trackingId,
-      userId: body.userId,
+      userId: effectiveUserId,
       file: req.file,
       operatorId: body.operatorId,
       accountId: body.accountId,
@@ -135,8 +136,9 @@ export const updateScan = async (req, res, next) => {
 export const deleteScan = async (req, res, next) => {
   try {
     const { id } = req.params;
+    const userId = req.userId || req.user?.id;
 
-    await deleteScanService(id);
+    await deleteScanService(id, userId);
 
     return res.status(200).json({
       success: true,
@@ -154,8 +156,9 @@ export const deleteScan = async (req, res, next) => {
 export const getUserVMS = async (req, res, next) => {
   try {
     const body = getUserVMSchema.parse(req.body);
+    const effectiveUserId = req.userId || req.user?.id || body.userId;
 
-    const scans = await getUserVMSService(body.userId);
+    const scans = await getUserVMSService(effectiveUserId);
     
     const baseUrl = process.env.BACKEND_URL || "http://localhost:5000";
     const mappedScans = scans.map(scan => ({
@@ -178,10 +181,11 @@ export const getUserVMS = async (req, res, next) => {
 export const updatePackingScanStatus = async (req, res, next) => {
   try {
     const body = updatePackingScanSchema.parse(req.body);
+    const effectiveUserId = req.userId || req.user?.id || body.userId;
 
     const result = await updatePackingScanStatusService({
       trackingId: body.trackingId,
-      userId: body.userId,
+      userId: effectiveUserId,
     });
 
     if (!result.success) {

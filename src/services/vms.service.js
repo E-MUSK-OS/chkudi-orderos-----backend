@@ -3,6 +3,7 @@ import {
   createScan,
   getScanById,
   getScanByTrackingId,
+  getScanByTrackingIdAndUser,
   updateScan,
   getAllScans,
   getScanCount,
@@ -51,10 +52,14 @@ export const updateScanService = async (id, data) => {
   return await updateScan(id, data);
 };
 
-export const deleteScanService = async (id) => {
+export const deleteScanService = async (id, userId) => {
   const scan = await getScanById(id);
   if (!scan) {
     throw new Error("Scan not found.");
+  }
+
+  if (userId && scan.userId && scan.userId !== userId) {
+    throw new Error("Unauthorized to delete this scan.");
   }
 
   // Delete files from NAS if they exist
@@ -125,8 +130,8 @@ export const uploadRecordingService = async ({
   // Always create a new scan record for each upload
   // This ensures we don't overwrite existing completed recordings
 
-  // Check if there's an existing scan with this trackingId
-  const existing = await getScanByTrackingId(trackingId);
+  // Check if there's an existing scan with this trackingId for this specific user/tenant
+  const existing = await getScanByTrackingIdAndUser(trackingId, userId);
 
   if (existing) {
     // Delete files from NAS if they exist
