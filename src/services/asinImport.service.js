@@ -42,6 +42,26 @@ export const importAsinFromExcelService = async (userId, fileBuffer) => {
     }
   });
 
+  const hasAsin =
+    headerMap["asin"] !== undefined ||
+    headerMap["asincode"] !== undefined ||
+    headerMap["amazonasin"] !== undefined;
+  const hasSku =
+    headerMap["sku"] !== undefined ||
+    headerMap["mastersku"] !== undefined ||
+    headerMap["productsku"] !== undefined ||
+    headerMap["sellersku"] !== undefined;
+  const isProductSheet = headerMap["productname"] !== undefined;
+  const isMyntraSheet =
+    headerMap["myntrasku"] !== undefined ||
+    headerMap["myntraskucode"] !== undefined;
+
+  if (!hasAsin || !hasSku || isProductSheet || isMyntraSheet) {
+    throw new Error(
+      "Please upload the appropriate sheet format for ASIN Import! You can download the demo sheet for reference."
+    );
+  }
+
   const getColValue = (row, fieldKeys) => {
     for (const key of fieldKeys) {
       const colNum = headerMap[key];

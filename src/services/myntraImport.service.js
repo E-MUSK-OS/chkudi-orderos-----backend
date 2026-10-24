@@ -43,6 +43,25 @@ export const importMyntraFromExcelService = async (userId, fileBuffer) => {
     }
   });
 
+  const hasMyntraSku =
+    headerMap["myntrasku"] !== undefined ||
+    headerMap["myntraskucode"] !== undefined ||
+    headerMap["platformsku"] !== undefined;
+  const hasSellerSku =
+    headerMap["sellersku"] !== undefined ||
+    headerMap["sellerskucode"] !== undefined ||
+    headerMap["mastersku"] !== undefined ||
+    headerMap["productsku"] !== undefined ||
+    headerMap["sku"] !== undefined;
+  const isProductSheet = headerMap["productname"] !== undefined;
+  const isAsinWithoutMyntra = headerMap["asin"] !== undefined && !hasMyntraSku;
+
+  if (!hasMyntraSku || !hasSellerSku || isProductSheet || isAsinWithoutMyntra) {
+    throw new Error(
+      "Please upload the appropriate sheet format for Myntra Import! You can download the demo sheet for reference."
+    );
+  }
+
   const getColValue = (row, fieldKeys) => {
     for (const key of fieldKeys) {
       const colNum = headerMap[key];

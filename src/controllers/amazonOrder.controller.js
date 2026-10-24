@@ -2,6 +2,7 @@ import {
   savePrintedOrdersService,
   getAmazonOrdersService,
   updatePackingScanStatusService,
+  getDailySummaryService,
 } from "../services/amazonOrder.service.js";
 
 /**
@@ -137,3 +138,24 @@ export const updatePackingScanStatusByIdController = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Get permanent daily order summary by date
+ * GET /api/v1/amazon-orders/summary?date=YYYY-MM-DD
+ */
+export const getDailySummaryController = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { date } = req.query;
+
+    const summary = await getDailySummaryService(userId, date);
+
+    res.status(200).json({
+      success: true,
+      data: summary,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

@@ -75,6 +75,7 @@ model User {
   amazonAnalytics        AmazonAnalytics[]
   amazonAnalyticsSetting AmazonAnalyticsSetting?
   amazonAnalyticsHistory AmazonAnalyticsHistory[]
+  amazonDailyOrderSummaries AmazonDailyOrderSummary[]
 }
 
 enum Role {
@@ -1186,6 +1187,31 @@ model AmazonProcessBatch {
   @@index([createdAt])
   @@index([expiresAt])
   @@map("amazon_process_batches")
+}
+
+// ==================================================================================
+// ==================== AMAZON DAILY ORDER SUMMARY MODEL ===========================
+// ==================================================================================
+
+model AmazonDailyOrderSummary {
+  id String @id @default(cuid())
+
+  date String // "YYYY-MM-DD" strictly in IST (Asia/Kolkata), e.g., "2026-10-24"
+
+  totalOrders   Int @default(0) // Total processed/printed orders for this day
+  scannedOrders Int @default(0) // Orders verified via AWB packing scan
+  pendingOrders Int @default(0) // Orders pending packing scan
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([date])
+  @@map("amazon_daily_order_summaries")
 }
 
 // ==================================================================================

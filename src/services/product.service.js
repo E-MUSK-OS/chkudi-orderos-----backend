@@ -338,6 +338,24 @@ export const importProductsFromExcelService = async (userId, fileBuffer) => {
     }
   });
 
+  const hasProductName =
+    headerMap["productname"] !== undefined ||
+    headerMap["product"] !== undefined ||
+    headerMap["title"] !== undefined;
+  const hasMasterSku =
+    headerMap["mastersku"] !== undefined ||
+    headerMap["sku"] !== undefined ||
+    headerMap["masterskucode"] !== undefined;
+  const isMyntraSheet =
+    headerMap["myntrasku"] !== undefined ||
+    headerMap["myntraskucode"] !== undefined;
+
+  if (!hasProductName || !hasMasterSku || isMyntraSheet) {
+    throw new Error(
+      "Please upload the appropriate sheet format for Product Import! You can download the demo sheet for reference."
+    );
+  }
+
   const getColValue = (row, fieldKeys) => {
     for (const key of fieldKeys) {
       const colNum = headerMap[key];

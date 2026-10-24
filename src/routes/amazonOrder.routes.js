@@ -3,6 +3,7 @@ import { verifyJWT } from "../middleware/auth.middleware.js";
 import {
   savePrintedOrdersController,
   getAmazonOrdersController,
+  getDailySummaryController,
   updatePackingScanStatusByAwbController,
   updatePackingScanStatusByIdController,
 } from "../controllers/amazonOrder.controller.js";
@@ -48,6 +49,9 @@ router.delete("/batches/:id", deleteBatchController);
 
 // Save printed orders
 router.post("/save-printed", savePrintedOrdersController);
+
+// Get permanent daily summary (total, scanned, pending) by date
+router.get("/summary", getDailySummaryController);
 
 // List orders with search, filter, pagination
 router.get("/", getAmazonOrdersController);
