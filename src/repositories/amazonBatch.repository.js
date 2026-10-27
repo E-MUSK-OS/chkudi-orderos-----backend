@@ -155,25 +155,73 @@ export const getAmazonProcessBatchById = async (userId, batchId) => {
   });
 
   if (batch && batch.summary && Array.isArray(batch.results)) {
+    // 1. Fetch orders strictly for this batch, plus any matching unlinked (batchId: null) candidate prints for this user
+    const batchAwbs = batch.results
+      .map((r) => (r.awb || "").trim())
+      .filter((a) => a && a !== "N/A" && a !== "-");
+    const batchOrderIds = batch.results
+      .map((r) => (r.orderNumber || r.orderId || "").trim())
+      .filter((o) => o && o !== "N/A" && o !== "-");
+
+    const orConditions = [{ batchId: batch.id }];
+    if (batchAwbs.length > 0 || batchOrderIds.length > 0) {
+      const unlinkedConditions = [];
+      if (batchAwbs.length > 0) unlinkedConditions.push({ awb: { in: batchAwbs, mode: "insensitive" } });
+      if (batchOrderIds.length > 0) unlinkedConditions.push({ orderId: { in: batchOrderIds, mode: "insensitive" } });
+      orConditions.push({
+        batchId: null,
+        OR: unlinkedConditions,
+      });
+    }
+
     const actualPrints = await prisma.amazonOrder.findMany({
-      where: { userId, batchId: batch.id },
-      select: { awb: true, orderId: true }
+      where: {
+        userId,
+        OR: orConditions,
+      },
+      select: { id: true, awb: true, orderId: true, batchId: true },
     });
-    
-    const printedAwbs = new Set(actualPrints.map(o => o.awb).filter(a => a && a !== "N/A" && a !== "-"));
-    const printedOrderIds = new Set(actualPrints.map(o => o.orderId).filter(o => o && o !== "N/A" && o !== "-"));
-    
-    const correctedIndices = [];
-    
-    batch.results.forEach(r => {
-      const rAwb = (r.awb || "").trim();
-      if (rAwb && rAwb !== "N/A" && rAwb !== "-" && printedAwbs.has(rAwb)) {
-        if (typeof r.index === "number") correctedIndices.push(r.index);
+
+    // Auto-link any matching unlinked legacy orders to this batchId in background
+    const unlinkedToLink = actualPrints.filter((o) => !o.batchId).map((o) => o.id);
+    if (unlinkedToLink.length > 0) {
+      prisma.amazonOrder
+        .updateMany({
+          where: { id: { in: unlinkedToLink } },
+          data: { batchId: batch.id },
+        })
+        .catch((err) => console.warn("Failed to auto-link unlinked amazon orders to batch:", err));
+    }
+
+    const printedAwbs = new Set(
+      actualPrints
+        .map((o) => (o.awb || "").trim().toUpperCase())
+        .filter((a) => a && a !== "N/A" && a !== "-")
+    );
+    const printedOrderIds = new Set(
+      actualPrints
+        .map((o) => (o.orderId || "").trim().toUpperCase())
+        .filter((o) => o && o !== "N/A" && o !== "-")
+    );
+
+    // Retain existing summary indices so historical prints are never dropped
+    const existingIndices = Array.isArray(batch.summary?.printedIndices) ? batch.summary.printedIndices : [];
+    const correctedIndices = new Set(existingIndices);
+
+    batch.results.forEach((r) => {
+      const rAwb = (r.awb || "").trim().toUpperCase();
+      const rOrderId = (r.orderNumber || r.orderId || "").trim().toUpperCase();
+
+      const hasAwbMatch = rAwb && rAwb !== "N/A" && rAwb !== "-" && printedAwbs.has(rAwb);
+      const hasOrderMatch = rOrderId && rOrderId !== "N/A" && rOrderId !== "-" && printedOrderIds.has(rOrderId);
+
+      if ((hasAwbMatch || hasOrderMatch) && typeof r.index === "number") {
+        correctedIndices.add(r.index);
       }
     });
 
-    batch.summary.printedCount = actualPrints.length;
-    batch.summary.printedIndices = correctedIndices;
+    batch.summary.printedCount = Math.max(actualPrints.length, correctedIndices.size);
+    batch.summary.printedIndices = Array.from(correctedIndices);
     batch.summary.printedAwbs = Array.from(printedAwbs);
     batch.summary.printedOrderIds = Array.from(printedOrderIds);
   }
@@ -222,29 +270,66 @@ export const updateBatchPrintedOrders = async (userId, batchId) => {
 
   if (!batch) return null;
 
-  // 1. Strictly filter the database by batchId instead of just matching AWBs globally
+  // 1. Strictly filter the database by batchId, plus any matching unlinked orders for this user
+  const batchAwbs = Array.isArray(batch.results)
+    ? batch.results.map((r) => (r.awb || "").trim()).filter((a) => a && a !== "N/A" && a !== "-")
+    : [];
+  const batchOrderIds = Array.isArray(batch.results)
+    ? batch.results.map((r) => (r.orderNumber || r.orderId || "").trim()).filter((o) => o && o !== "N/A" && o !== "-")
+    : [];
+
+  const orConditions = [{ batchId }];
+  if (batchAwbs.length > 0 || batchOrderIds.length > 0) {
+    const unlinkedConditions = [];
+    if (batchAwbs.length > 0) unlinkedConditions.push({ awb: { in: batchAwbs, mode: "insensitive" } });
+    if (batchOrderIds.length > 0) unlinkedConditions.push({ orderId: { in: batchOrderIds, mode: "insensitive" } });
+    orConditions.push({
+      batchId: null,
+      OR: unlinkedConditions,
+    });
+  }
+
   const printedOrders = await prisma.amazonOrder.findMany({
-    where: { userId, batchId },
-    select: { orderId: true, awb: true }
+    where: {
+      userId,
+      OR: orConditions,
+    },
+    select: { id: true, orderId: true, awb: true, batchId: true },
   });
+
+  // Auto-link any matching unlinked legacy orders to this batchId
+  const unlinkedToLink = printedOrders.filter((o) => !o.batchId).map((o) => o.id);
+  if (unlinkedToLink.length > 0) {
+    prisma.amazonOrder
+      .updateMany({
+        where: { id: { in: unlinkedToLink } },
+        data: { batchId },
+      })
+      .catch((err) => console.warn("Failed to auto-link unlinked amazon orders to batch:", err));
+  }
 
   const printedOrderIds = new Set();
   const printedAwbs = new Set();
-  const printedIndices = new Set();
+  const existingIndices = Array.isArray(batch.summary?.printedIndices) ? batch.summary.printedIndices : [];
+  const printedIndices = new Set(existingIndices);
 
   printedOrders.forEach((item) => {
-    const orderId = (item.orderId || "").trim();
-    const awb = (item.awb || "").trim();
+    const orderId = (item.orderId || "").trim().toUpperCase();
+    const awb = (item.awb || "").trim().toUpperCase();
     if (orderId && orderId !== "N/A" && orderId !== "-") printedOrderIds.add(orderId);
     if (awb && awb !== "N/A" && awb !== "-") printedAwbs.add(awb);
   });
 
   if (Array.isArray(batch.results)) {
     batch.results.forEach((r) => {
-      const rAwb = (r.awb || "").trim();
-      // Verify print strictly by AWB Tracking
-      if (rAwb && rAwb !== "N/A" && rAwb !== "-" && printedAwbs.has(rAwb)) {
-        if (typeof r.index === "number") printedIndices.add(r.index);
+      const rAwb = (r.awb || "").trim().toUpperCase();
+      const rOrderId = (r.orderNumber || r.orderId || "").trim().toUpperCase();
+
+      const hasAwbMatch = rAwb && rAwb !== "N/A" && rAwb !== "-" && printedAwbs.has(rAwb);
+      const hasOrderMatch = rOrderId && rOrderId !== "N/A" && rOrderId !== "-" && printedOrderIds.has(rOrderId);
+
+      if ((hasAwbMatch || hasOrderMatch) && typeof r.index === "number") {
+        printedIndices.add(r.index);
       }
     });
   }
@@ -253,7 +338,7 @@ export const updateBatchPrintedOrders = async (userId, batchId) => {
 
   const updatedSummary = {
     ...currentSummary,
-    printedCount: printedIndices.size || printedAwbs.size,
+    printedCount: Math.max(printedIndices.size, printedOrders.length),
     printedOrderIds: Array.from(printedOrderIds),
     printedAwbs: Array.from(printedAwbs),
     printedIndices: Array.from(printedIndices),
