@@ -76,6 +76,12 @@ model User {
   amazonAnalyticsSetting AmazonAnalyticsSetting?
   amazonAnalyticsHistory AmazonAnalyticsHistory[]
   amazonDailyOrderSummaries AmazonDailyOrderSummary[]
+  parties                   Party[]
+  salesChallans             SalesChallan[]
+  purchaseChallans          PurchaseChallan[]
+  webstores                 Webstore[]
+  salesInvoices             SalesInvoice[]
+  purchaseInvoices          PurchaseInvoice[]
 }
 
 enum Role {
@@ -1298,3 +1304,528 @@ model AmazonAnalyticsHistory {
   @@index([amazonAnalyticsId])
   @@map("amazon_analytics_history")
 }
+
+// ==================================================================================
+// ============================= PARTY / LEDGER BOOK MODEL ==========================
+// ==================================================================================
+
+model Party {
+  id             String         @id @default(cuid())
+  userId         String
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  partyName      String
+  accountCode    String?
+  alias          String?
+  accountHead    String         @default("Sundry Debtors")
+  contactPerson  String?
+  email          String?
+  phone          String?
+  whatsapp       String?
+  addressLine1          String?
+  addressLine2          String?
+  addressLine3          String?
+  area                  String?
+  city                  String?
+  state                 String?
+  country               String?        @default("India")
+  pincode               String?
+
+  // Shipping Address
+  shippingSameAsBilling Boolean        @default(true)
+  shippingAddress1      String?
+  shippingAddress2      String?
+  shippingAddress3      String?
+  shippingArea          String?
+  shippingCountry       String?        @default("India")
+  shippingState         String?
+  shippingCity          String?
+  shippingPincode       String?
+  shippingPhone         String?
+
+  // Accounting Details
+  pan                   String?
+  gstin                 String?
+  gstDate               String?
+  cstNo                 String?
+  cstDate               String?
+  serviceTaxNo          String?
+  serviceTaxDate        String?
+  otherTaxNo            String?
+  otherTaxDate          String?
+  billDueDays           Int            @default(0)
+  creditLimit           Float          @default(0)
+  debitLimit            Float          @default(0)
+
+  bankName              String?
+  accountNumber         String?
+  ifsc                  String?
+  openingBalance        Float          @default(0)
+  balanceType           String         @default("Credit")
+  joinDate              DateTime       @default(now())
+  isActive              Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  challans          SalesChallan[]
+  purchaseChallans  PurchaseChallan[]
+  salesInvoices     SalesInvoice[]
+  purchaseInvoices  PurchaseInvoice[]
+
+  @@unique([userId, partyName])
+  @@index([userId])
+  @@index([partyName])
+  @@index([accountHead])
+}
+
+// ==================================================================================
+// ============================== SALES CHALLAN MODEL ===============================
+// ==================================================================================
+
+model SalesChallan {
+  id            String             @id @default(cuid())
+  userId        String
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  partyId       String?
+  party         Party?             @relation(fields: [partyId], references: [id], onDelete: SetNull)
+  partyName     String
+  contactNo     String?
+  challanNo     String
+  challanRefNo  String?
+  challanDate   DateTime           @default(now())
+  challanFor    String             @default("Sales")
+  stockOutFrom  String             @default("General")
+  consigneeName String?            @default("Not Applicable")
+  deliveryBy    String?            @default("Buyer")
+  preparedBy    String?
+  deliveryTerms String?
+  totalQuantity Int                @default(0)
+  totalAmount   Float              @default(0)
+  invoiceStatus String             @default("Not Invoiced")
+  isStockOut    Boolean            @default(false)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  items         SalesChallanItem[]
+  invoices      SalesInvoice[]
+
+  @@unique([userId, challanNo])
+  @@index([userId])
+  @@index([challanNo])
+  @@index([challanDate])
+}
+
+// ==================================================================================
+// ============================ SALES CHALLAN ITEM MODEL ============================
+// ==================================================================================
+
+model SalesChallanItem {
+  id           String       @id @default(cuid())
+  challanId    String
+  challan      SalesChallan @relation(fields: [challanId], references: [id], onDelete: Cascade)
+  itemNo       Int          @default(1)
+  sku          String
+  name         String
+  quantity     Int          @default(1)
+  rate         Float        @default(0.0)
+  amount       Float        @default(0.0)
+  dispatchDate String?
+  subCn        String?
+  remarks      String?
+  printBarcode Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([challanId])
+  @@index([sku])
+}
+
+// ==================================================================================
+// ============================= PURCHASE CHALLAN MODEL =============================
+// ==================================================================================
+
+model PurchaseChallan {
+  id               String                @id @default(cuid())
+  userId           String
+  user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  supplierId       String?
+  supplier         Party?                @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  supplierName     String
+  contactNo        String?
+  challanNo        String
+  partyChallanNo   String?
+  challanDate      DateTime              @default(now())
+  partyChallanDate DateTime?
+  challanFor       String                @default("Purchase")
+  stockIn          String                @default("General")
+  courierPartner   String?
+  lrNo             String?
+  receivedBy       String?               @default("Ramesh")
+  checkedBy        String?               @default("Ramesh")
+  preparedBy       String?               @default("Ramesh")
+  totalOrderedQty  Int                   @default(0)
+  totalReceivedQty Int                   @default(0)
+  totalAmount      Float                 @default(0)
+  invoiceStatus    String                @default("Pending")
+  isStockIn        Boolean               @default(false)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  items            PurchaseChallanItem[]
+  invoices         PurchaseInvoice[]
+
+  @@unique([userId, challanNo])
+  @@index([userId])
+  @@index([challanNo])
+  @@index([challanDate])
+}
+
+// ==================================================================================
+// ========================== PURCHASE CHALLAN ITEM MODEL ===========================
+// ==================================================================================
+
+model PurchaseChallanItem {
+  id             String          @id @default(cuid())
+  challanId      String
+  challan        PurchaseChallan @relation(fields: [challanId], references: [id], onDelete: Cascade)
+  itemNo         Int             @default(1)
+  sku            String
+  name           String
+  orderedQty     Int             @default(0)
+  receivedQty    Int             @default(1)
+  rate           Float           @default(0.0)
+  amount         Float           @default(0.0)
+  poNo           String?
+  partyChallanNo String?
+  receivedDate   String?
+  remarks        String?
+  printBarcode   Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([challanId])
+  @@index([sku])
+}
+
+// ==================================================================================
+// ================================ WEBSTORE MODEL ==================================
+// ==================================================================================
+
+model Webstore {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // 1. Basic Information
+  code             Int       @default(0)
+  marketplaceName  String    // e.g. "Amazon", "AJIO-DROPSHIP", "Flipkart", "Myntra", "CloudTail"
+  marketplaceLogo  String?   // URL or channel identifier
+  storeName        String    // Web Store Name (e.g. "Chakudee Fashion-DROPSHIP")
+  parentOrChild    String    @default("Parent") // "Parent" | "Child"
+  registeredEmail  String?
+  contactUsEmail   String?
+  registeredPhone  String?
+  contactUsPhone   String?
+  registrationDate DateTime  @default(now())
+  skuCount         Int       @default(0)
+
+  // 2. Address / Billing Details
+  billTo           String?   // Company Name / Billing Entity
+  address1         String?
+  address2         String?
+  city             String?
+  pincode          String?
+  state            String?
+  gstNo            String?
+
+  // 3. Bank Account
+  bankAccount      String?   // e.g. "BOI Saving A/C 7199"
+  bankIfscCode     String?
+  lastPaymentDate  DateTime?
+
+  // 4. Configuration Flags
+  isActive                        Boolean   @default(true)
+  returnActive                    Boolean   @default(true)
+  isOnTpBased                     Boolean   @default(false)
+  isOnResellerBased               Boolean   @default(false)
+  validateStoreBeforeUploading    Boolean   @default(false)
+  isManifestBasedSalesInvoice     Boolean   @default(false)
+  warehouseCode                   String?
+
+  // 5. Legacy API Configuration
+  sellerId         String?
+  secretKey        String?
+  marketplaceId    String?
+  authToken        String?
+  awsAccessKey     String?
+  endPoints        String?   @default("https://mws.amazonservices.in")
+
+  // 6. Selling Partner API Configuration (SP-API)
+  spapiOauthCode   String?
+  sellingPartnerId String?
+  mwsAuthToken     String?
+  refreshToken     String?
+  accessToken      String?
+  spMarketplaceId  String?   // e.g. "A21TJRUUN4KGV"
+  spClientId       String?
+  spClientSecret   String?
+  spAwsAccessKey   String?
+  spAwsSecretKey   String?
+
+  // Timestamps
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([userId, storeName])
+  @@index([userId])
+  @@index([marketplaceName])
+  @@index([isActive])
+}
+
+// ==================================================================================
+// ============================== SALES INVOICE MODEL ===============================
+// ==================================================================================
+
+model SalesInvoice {
+  id                    String             @id @default(cuid())
+  userId                String
+  user                  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Link to Challan & Party
+  challanId             String?
+  challan               SalesChallan?      @relation(fields: [challanId], references: [id], onDelete: SetNull)
+  partyId               String?
+  party                 Party?             @relation(fields: [partyId], references: [id], onDelete: SetNull)
+
+  // Header Details
+  invoiceType           String             @default("Tax Invoice")
+  invoiceNo             String
+  invoiceDate           DateTime           @default(now())
+  challanNo             String?
+  challanDate           DateTime?
+  partyGstn             String?
+  stateCode             String?
+  brokerName            String?
+  consigneeName         String?
+  editOn                Boolean            @default(true)
+
+  // Remarks & Logistics
+  remarks               String?
+  ewayBillNo            String?
+  expenseOnSales        Float              @default(0.0)
+  hasReceipt            Boolean            @default(false)
+  receivedAmount        Float?             @default(0.0)
+  receiptMode           String?
+  receiptAccount        String?
+  transactionType       String?
+  transactionDate       DateTime?
+  chequeNo              String?
+  bankName              String?
+
+  // Billing Party Details
+  billingPartyName      String
+  billingAddress        String?
+  billingCity           String?
+  billingState          String?
+  billingPincode        String?
+  billingEmail          String?
+  billingMobile         String?
+
+  // Shipping Party Details
+  shippingPartyName     String?
+  shippingAddress       String?
+  shippingAddress2      String?
+  shippingCity          String?
+  shippingState         String?
+  shippingPincode       String?
+  shippingContact       String?
+  courierPartner        String?
+  trackingNo            String?
+
+  // Totals & Calculations
+  totalQuantity         Int                @default(0)
+  totalAmount           Float              @default(0.0)
+  totalDiscount         Float              @default(0.0)
+  amountBeforeTax       Float              @default(0.0)
+  sgstAmount            Float              @default(0.0)
+  cgstAmount            Float              @default(0.0)
+  igstAmount            Float              @default(0.0)
+  totalGst              Float              @default(0.0)
+  amountAfterTax        Float              @default(0.0)
+  roundOff              Float              @default(0.0)
+  netAmount             Float              @default(0.0)
+
+  status                String             @default("Generated")
+
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  items                 SalesInvoiceItem[]
+
+  @@unique([userId, invoiceNo])
+  @@index([userId])
+  @@index([invoiceNo])
+  @@index([challanNo])
+  @@index([invoiceDate])
+}
+
+// ==================================================================================
+// ============================ SALES INVOICE ITEM MODEL ============================
+// ==================================================================================
+
+model SalesInvoiceItem {
+  id                    String             @id @default(cuid())
+  invoiceId             String
+  invoice               SalesInvoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  itemNo                Int                @default(1)
+  sku                   String
+  particular            String
+  hsn                   String?
+
+  quantity              Int                @default(1)
+  rate                  Float              @default(0.0)
+  amount                Float              @default(0.0)
+
+  discountPercent       Float              @default(0.0)
+  discountAmount        Float              @default(0.0)
+  taxableAmount         Float              @default(0.0)
+
+  sgstRate              Float              @default(0.0)
+  sgstAmount            Float              @default(0.0)
+  cgstRate              Float              @default(0.0)
+  cgstAmount            Float              @default(0.0)
+  igstRate              Float              @default(0.0)
+  igstAmount            Float              @default(0.0)
+
+  total                 Float              @default(0.0)
+
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  @@index([invoiceId])
+  @@index([sku])
+}
+
+// ==================================================================================
+// ============================= PURCHASE INVOICE MODEL =============================
+// ==================================================================================
+
+model PurchaseInvoice {
+  id                    String                @id @default(cuid())
+  userId                String
+  user                  User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Link to Purchase Challan & Supplier Party
+  challanId             String?
+  challan               PurchaseChallan?      @relation(fields: [challanId], references: [id], onDelete: SetNull)
+  supplierId            String?
+  supplier              Party?                @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  // Header Details
+  invoiceType           String                @default("Tax Invoice")
+  invoiceNo             String
+  invoiceDate           DateTime              @default(now())
+  challanNo             String?
+  challanDate           DateTime?
+  partyGstn             String?
+  stateCode             String?
+  brokerName            String?
+  consigneeName         String?
+  editOn                Boolean               @default(true)
+
+  // Remarks & Logistics
+  remarks               String?
+  ewayBillNo            String?
+  expenseOnPurchase     Float                 @default(0.0)
+  hasReceipt            Boolean               @default(false)
+  receivedAmount        Float?                @default(0.0)
+  receiptMode           String?
+  receiptAccount        String?
+  transactionType       String?
+  transactionDate       DateTime?
+  chequeNo              String?
+  bankName              String?
+
+  // Billing Party Details
+  billingPartyName      String
+  billingAddress        String?
+  billingCity           String?
+  billingState          String?
+  billingPincode        String?
+  billingEmail          String?
+  billingMobile         String?
+
+  // Shipping Party Details
+  shippingPartyName     String?
+  shippingAddress       String?
+  shippingAddress2      String?
+  shippingCity          String?
+  shippingState         String?
+  shippingPincode       String?
+  shippingContact       String?
+  courierPartner        String?
+  trackingNo            String?
+
+  // Totals & Calculations
+  totalQuantity         Int                   @default(0)
+  totalAmount           Float                 @default(0.0)
+  totalDiscount         Float                 @default(0.0)
+  amountBeforeTax       Float                 @default(0.0)
+  sgstAmount            Float                 @default(0.0)
+  cgstAmount            Float                 @default(0.0)
+  igstAmount            Float                 @default(0.0)
+  totalGst              Float                 @default(0.0)
+  amountAfterTax        Float                 @default(0.0)
+  roundOff              Float                 @default(0.0)
+  netAmount             Float                 @default(0.0)
+
+  status                String                @default("Generated")
+
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  items                 PurchaseInvoiceItem[]
+
+  @@unique([userId, invoiceNo])
+  @@index([userId])
+  @@index([invoiceNo])
+  @@index([challanNo])
+  @@index([invoiceDate])
+}
+
+// ==================================================================================
+// ========================== PURCHASE INVOICE ITEM MODEL ===========================
+// ==================================================================================
+
+model PurchaseInvoiceItem {
+  id                    String          @id @default(cuid())
+  invoiceId             String
+  invoice               PurchaseInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  itemNo                Int             @default(1)
+  sku                   String
+  particular            String
+  hsn                   String?
+
+  quantity              Int             @default(1)
+  rate                  Float           @default(0.0)
+  amount                Float           @default(0.0)
+
+  discountPercent       Float           @default(0.0)
+  discountAmount        Float           @default(0.0)
+  taxableAmount         Float           @default(0.0)
+
+  sgstRate              Float           @default(0.0)
+  sgstAmount            Float           @default(0.0)
+  cgstRate              Float           @default(0.0)
+  cgstAmount            Float           @default(0.0)
+  igstRate              Float           @default(0.0)
+  igstAmount            Float           @default(0.0)
+
+  total                 Float           @default(0.0)
+
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  @@index([invoiceId])
+  @@index([sku])
+}
+
+

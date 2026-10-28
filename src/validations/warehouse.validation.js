@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { gstValidationSchema } from "./party.validation.js";
 
 // ======================================================
 // Create Warehouse Validation
@@ -50,7 +51,7 @@ export const createWarehouseSchema = z.object({
 
   pincode: z.string().trim().max(20).optional(),
 
-  gstNumber: z.string().trim().max(30).optional(),
+  gstNumber: gstValidationSchema.optional(),
 });
 
 // ======================================================

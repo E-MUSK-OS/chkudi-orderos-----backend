@@ -25,6 +25,12 @@ import myntraImportRoutes from "./myntraImport.routes.js";
 import amazonOrderRoutes from "./amazonOrder.routes.js";
 import amazonBatchChunkRoutes from "./amazonBatchChunk.routes.js";
 import amazonAnalyticsRoutes from "./amazonAnalytics.routes.js";
+import partyRoutes from "./party.routes.js";
+import salesChallanRoutes from "./salesChallan.routes.js";
+import purchaseChallanRoutes from "./purchaseChallan.routes.js";
+import webstoreRoutes from "./webstore.routes.js";
+import salesInvoiceRoutes from "./salesInvoice.routes.js";
+import purchaseInvoiceRoutes from "./purchaseInvoice.routes.js";
 
 const router = Router();
 
@@ -57,6 +63,12 @@ router.use("/myntra-imports", myntraImportRoutes);
 router.use("/amazon-orders/batch-chunks", amazonBatchChunkRoutes);
 router.use("/amazon-orders", amazonOrderRoutes);
 router.use("/amazon-analytics", amazonAnalyticsRoutes);
+router.use("/parties", partyRoutes);
+router.use("/sales-challans", salesChallanRoutes);
+router.use("/purchase-challans", purchaseChallanRoutes);
+router.use("/webstores", webstoreRoutes);
+router.use("/sales-invoices", salesInvoiceRoutes);
+router.use("/purchase-invoices", purchaseInvoiceRoutes);
 
 export default router;
 
