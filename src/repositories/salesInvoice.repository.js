@@ -71,8 +71,8 @@ export const createSalesInvoiceRepo = async (userId, data, items) => {
   const roundOff = typeof data.roundOff === "number"
     ? data.roundOff
     : (data.applyRoundOff === false
-        ? 0
-        : Math.round((Math.round(amountAfterTax) - amountAfterTax) * 100) / 100);
+      ? 0
+      : Math.round((Math.round(amountAfterTax) - amountAfterTax) * 100) / 100);
 
   const netAmount = Math.round((amountAfterTax + roundOff) * 100) / 100;
 
@@ -181,6 +181,9 @@ export const createSalesInvoiceRepo = async (userId, data, items) => {
 
 export const findSalesInvoicesRepo = async (userId, filters = {}) => {
   const {
+    id,
+    ids,
+    invoiceId,
     search,
     invoiceNo,
     challanNo,
@@ -196,6 +199,21 @@ export const findSalesInvoicesRepo = async (userId, filters = {}) => {
   } = filters;
 
   const where = { userId };
+
+  if (ids) {
+    const idList = Array.isArray(ids)
+      ? ids
+      : typeof ids === "string"
+      ? ids.split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
+    if (idList.length > 0) {
+      where.id = { in: idList };
+    }
+  } else if (id) {
+    where.id = id;
+  } else if (invoiceId) {
+    where.id = invoiceId;
+  }
 
   if (invoiceNo && invoiceNo.trim()) {
     where.invoiceNo = { contains: invoiceNo.trim(), mode: "insensitive" };
@@ -265,7 +283,7 @@ export const findSalesInvoicesRepo = async (userId, filters = {}) => {
     }
   }
 
-  const take = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
+  const take = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 10000);
   const skip = (Math.max(parseInt(page, 10) || 1, 1) - 1) * take;
 
   const [invoices, total] = await Promise.all([
@@ -351,8 +369,8 @@ export const updateSalesInvoiceRepo = async (id, userId, data, items) => {
   const roundOff = typeof data.roundOff === "number"
     ? data.roundOff
     : (data.applyRoundOff === false
-        ? 0
-        : Math.round((Math.round(amountAfterTax) - amountAfterTax) * 100) / 100);
+      ? 0
+      : Math.round((Math.round(amountAfterTax) - amountAfterTax) * 100) / 100);
 
   const netAmount = Math.round((amountAfterTax + roundOff) * 100) / 100;
 
@@ -367,6 +385,7 @@ export const updateSalesInvoiceRepo = async (id, userId, data, items) => {
       data: {
         invoiceType: data.invoiceType || existing.invoiceType,
         invoiceDate: data.invoiceDate ? parseDateOrFallback(data.invoiceDate, existing.invoiceDate) : existing.invoiceDate,
+        challanNo: data.challanNo !== undefined ? data.challanNo : existing.challanNo,
         challanDate: data.challanDate !== undefined ? parseDateOrFallback(data.challanDate, null) : existing.challanDate,
         brokerName: data.brokerName !== undefined ? data.brokerName : existing.brokerName,
         consigneeName: data.consigneeName !== undefined ? data.consigneeName : existing.consigneeName,
