@@ -86,7 +86,7 @@ export const createProductVariantService = async (userId, data) => {
     // await createInventoryService(created.id, userId, tx);
 
     return created;
-  });
+  }, { maxWait: 10000, timeout: 20000 });
 
   // Sync to AsinImport table
   const effectiveRackAddress = data.rackAddress !== undefined

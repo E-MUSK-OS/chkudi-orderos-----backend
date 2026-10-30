@@ -11,6 +11,7 @@ const productAttributeSchema = z.object({
     .trim()
     .min(1, "Attribute name is required.")
     .max(100, "Attribute name cannot exceed 100 characters."),
+  attributeValue: z.string().trim().optional(),
 });
 
 export const createProductSchema = z.object({
@@ -72,10 +73,10 @@ export const createProductSchema = z.object({
     .nullable(),
 
   mrp: z
-    .string()
-    .trim()
-    .optional()
-    .nullable(),
+    .preprocess(
+      (val) => (val === undefined || val === null ? "" : String(val).trim()),
+      z.string({ required_error: "MRP is required." }).min(1, "MRP is required.")
+    ),
 
   mfgMonth: z
     .string()
@@ -96,6 +97,29 @@ export const createProductSchema = z.object({
     .optional()
     .nullable(),
 
+  // General Details (New Fields)
+  sku: z.string().trim().max(100).optional().nullable(),
+  unit: z.string().trim().max(50).optional().nullable().default("Pcs"),
+  sizeList: z.string().trim().max(500).optional().nullable(),
+  colors: z
+    .array(z.string().trim())
+    .or(z.string().transform((val) => (val ? val.split(",").map((s) => s.trim()).filter(Boolean) : [])))
+    .optional()
+    .default([]),
+  gender: z.string().trim().max(50).optional().nullable(),
+  referenceParty: z.string().trim().max(100).optional().nullable(),
+
+  // Kardex Details (New Fields)
+  productCost: z.number().min(0).optional().nullable().default(0),
+  dealerRate: z.number().min(0).optional().nullable().default(0),
+  retailRate: z.number().min(0).optional().nullable().default(0),
+  openingStock: z.number().int().min(0).optional().nullable().default(0),
+  reorderLevelStock: z.number().int().min(0).optional().nullable().default(0),
+  minimumStock: z.number().int().min(0).optional().nullable().default(0),
+  productPoints: z.number().min(0).optional().nullable().default(1),
+  isPaired: z.boolean().optional().default(false),
+  availability: z.string().trim().max(50).optional().nullable().default("Public"),
+
   attributes: z.array(productAttributeSchema).default([]),
 
   isActive: z.boolean().optional(),
@@ -106,7 +130,18 @@ export const createProductSchema = z.object({
 // ======================================================
 
 export const updateProductSchema = createProductSchema.partial().extend({
-  mrp: z.string().trim().optional().nullable(),
+  gender: z.string().trim().max(50).optional().nullable(),
+  referenceParty: z.string().trim().max(100).optional().nullable(),
+  sizeList: z.string().trim().max(500).optional().nullable(),
+  colors: z
+    .array(z.string().trim())
+    .or(z.string().transform((val) => (val ? val.split(",").map((s) => s.trim()).filter(Boolean) : [])))
+    .optional(),
+  mrp: z
+    .preprocess(
+      (val) => (val === undefined || val === null ? undefined : String(val).trim()),
+      z.string().min(1, "MRP cannot be empty.").optional()
+    ),
   mfgMonth: z.string().trim().optional().nullable(),
 });
 
@@ -116,4 +151,14 @@ export const updateProductSchema = createProductSchema.partial().extend({
 
 export const updateProductStatusSchema = z.object({
   isActive: z.boolean(),
+});
+
+// ======================================================
+// Dropdown Option Validation
+// ======================================================
+
+export const createDropdownOptionSchema = z.object({
+  field: z.string().trim().min(1, "Field name is required."),
+  value: z.string().trim().min(1, "Option value is required."),
+  label: z.string().trim().optional(),
 });

@@ -82,6 +82,7 @@ model User {
   webstores                 Webstore[]
   salesInvoices             SalesInvoice[]
   purchaseInvoices          PurchaseInvoice[]
+  dropdownOptions           DropdownOption[]
 }
 
 enum Role {
@@ -558,12 +559,29 @@ model Product {
 
   productName String
   masterSku   String
+  sku         String?
 
   brand       String?
   category    String
   subCategory String?
 
   description String?
+
+  unit            String?
+  sizeList        String?
+  colors          String[]
+  gender          String?
+  referenceParty  String?
+
+  productCost       Float?
+  dealerRate        Float?
+  retailRate        Float?
+  openingStock      Int?
+  reorderLevelStock Int?
+  minimumStock      Int?
+  productPoints     Float?
+  isPaired          Boolean @default(false)
+  availability      String?
 
   asin            String?
   rackAddress     String?
@@ -572,6 +590,9 @@ model Product {
   mfgMonth        String?
   hsnCode         String?
   gstRate         Float?
+  imageUrl        String?
+
+  imgfileurl      String?
 
   // ======================================================
   // Status
@@ -651,6 +672,9 @@ model ProductVariant {
   asin            String?
   rackAddress     String?
   generateBarcode String? @default("No")
+  imageUrl        String?
+
+  imgfileurl      String?
 
   isActive Boolean @default(true)
 
@@ -1827,5 +1851,23 @@ model PurchaseInvoiceItem {
   @@index([invoiceId])
   @@index([sku])
 }
+
+// ==================================================================================
+// ============================= DropdownOption MODEL ===============================
+// ==================================================================================
+
+model DropdownOption {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  field     String
+  value     String
+  label     String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, field, value])
+  @@index([userId, field])
+}
+
 
 

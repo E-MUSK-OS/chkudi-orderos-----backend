@@ -70,9 +70,47 @@ export const createProductVariant = async (data, tx = prisma) => {
     data: variantData,
   });
 
-  if (attributes.length > 0) {
+  const finalAttributes = [...attributes];
+  const incomingAttrIds = new Set(
+    attributes.map((a) => a.productAttributeId).filter(Boolean)
+  );
+
+  // Auto-inherit missing attributes (like Gender or other product attributes) from sibling variants
+  if (variantData.productId) {
+    const productAttributes = await tx.productAttribute.findMany({
+      where: { productId: variantData.productId },
+    });
+
+    const missingAttributes = productAttributes.filter((pa) => !incomingAttrIds.has(pa.id));
+    if (missingAttributes.length > 0) {
+      const siblingVas = await tx.productVariantAttribute.findMany({
+        where: {
+          productVariant: { productId: variantData.productId },
+          productAttributeId: { in: missingAttributes.map((pa) => pa.id) },
+        },
+      });
+      const siblingMap = new Map();
+      for (const sva of siblingVas) {
+        if (!siblingMap.has(sva.productAttributeId) && sva.attributeValue) {
+          siblingMap.set(sva.productAttributeId, sva.attributeValue);
+        }
+      }
+      for (const pa of missingAttributes) {
+        const val = siblingMap.get(pa.id);
+        if (val) {
+          finalAttributes.push({
+            productAttributeId: pa.id,
+            attributeValue: val,
+          });
+          incomingAttrIds.add(pa.id);
+        }
+      }
+    }
+  }
+
+  if (finalAttributes.length > 0) {
     await tx.productVariantAttribute.createMany({
-      data: attributes.map((attribute) => ({
+      data: finalAttributes.map((attribute) => ({
         productVariantId: variant.id,
         productAttributeId: attribute.productAttributeId,
         attributeValue: attribute.attributeValue,
@@ -171,20 +209,22 @@ export const updateProductVariant = async (id, userId, data) => {
       data: variantData,
     });
 
-    if (attributes.length > 0) {
+    if (data.attributes !== undefined) {
       await tx.productVariantAttribute.deleteMany({
         where: {
           productVariantId: id,
         },
       });
 
-      await tx.productVariantAttribute.createMany({
-        data: attributes.map((attribute) => ({
-          productVariantId: id,
-          productAttributeId: attribute.productAttributeId,
-          attributeValue: attribute.attributeValue,
-        })),
-      });
+      if (attributes.length > 0) {
+        await tx.productVariantAttribute.createMany({
+          data: attributes.map((attribute) => ({
+            productVariantId: id,
+            productAttributeId: attribute.productAttributeId,
+            attributeValue: attribute.attributeValue,
+          })),
+        });
+      }
     }
 
     return await tx.productVariant.findUnique({
