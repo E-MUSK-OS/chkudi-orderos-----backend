@@ -56,6 +56,11 @@ export const createProduct = async (data) => {
   if (Array.isArray(productData.colors)) {
     updateData.colors = productData.colors;
   }
+  if (productData.marketplace !== undefined) {
+    updateData.marketplace = Array.isArray(productData.marketplace)
+      ? productData.marketplace.join(", ")
+      : String(productData.marketplace || "All");
+  }
 
   return await prisma.$transaction(
     async (tx) => {
@@ -264,6 +269,11 @@ export const updateProduct = async (id, data) => {
   const updateData = { ...productData };
   if (Array.isArray(productData.colors)) {
     updateData.colors = { set: productData.colors };
+  }
+  if (productData.marketplace !== undefined) {
+    updateData.marketplace = Array.isArray(productData.marketplace)
+      ? productData.marketplace.join(", ")
+      : String(productData.marketplace || "All");
   }
 
   return await prisma.$transaction(

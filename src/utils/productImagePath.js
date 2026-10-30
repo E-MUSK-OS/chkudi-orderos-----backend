@@ -1,6 +1,27 @@
 import fs from "fs";
 import path from "path";
 
+/**
+ * Canonical product image root on NAS.
+ */
+export const PRIMARY_PRODUCT_IMAGE_ROOT = "/mnt/qnap-vms/product-image";
+
+/**
+ * Supported image extensions for product images.
+ */
+export const SUPPORTED_IMAGE_EXTENSIONS = [
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".webp",
+  ".gif",
+  ".svg",
+  ".avif",
+];
+
+/**
+ * Sanitizes a path segment (user name, SKU, color) to prevent directory traversal and invalid chars.
+ */
 export const sanitizeFileName = (str) => {
   return String(str || "")
     .trim()
@@ -8,33 +29,65 @@ export const sanitizeFileName = (str) => {
 };
 
 /**
+ * Returns the root directory for product images on the NAS.
+ * Always resolves to /mnt/qnap-vms/product-image.
+ * Does NOT derive from NAS_ROOT_PATH.
+ * Does NOT depend on NAS_PRODUCT_IMAGE_ROOT_PATH being changed or added to .env.
+ */
+export const getProductImageRoot = () => {
+  const custom = process.env.NAS_PRODUCT_IMAGE_ROOT_PATH;
+  if (custom && typeof custom === "string" && custom.trim().length > 0 && custom.trim() !== "undefined") {
+    return custom.trim();
+  }
+  return PRIMARY_PRODUCT_IMAGE_ROOT;
+};
+
+/**
  * Returns the target storage directory on NAS for a given user and master SKU.
- * Format: <NAS_ROOT_PATH>/VMS/Product Img/<userName>/<masterSku>
- * If NAS_ROOT_PATH is inaccessible (e.g. dev environment), falls back to public/uploads/nas/...
+ * Format: /mnt/qnap-vms/product-image/<userName>/<masterSku>
+ * If NAS directory is inaccessible (e.g. dev environment or unmounted NAS),
+ * logs a clear warning and falls back to public/uploads/nas/product-image/...
  */
 export const getProductImageDir = async (userName, masterSku) => {
   const cleanUser = sanitizeFileName(userName) || "default";
   const cleanSku = sanitizeFileName(masterSku) || "unknown_sku";
 
-  const nasRoot = process.env.NAS_ROOT_PATH;
-  if (nasRoot) {
+  const primaryRoot = getProductImageRoot();
+  const nasTargetDir = path.resolve(primaryRoot, cleanUser, cleanSku);
+
+  // Check if primary NAS root or its mount point is accessible before creating directory
+  const mountBase = path.dirname(primaryRoot);
+  const isNasMountAccessible = fs.existsSync(primaryRoot) || fs.existsSync(mountBase);
+
+  if (isNasMountAccessible) {
     try {
-      const nasTargetDir = path.resolve(nasRoot, "VMS", "Product Img", cleanUser, cleanSku);
       await fs.promises.mkdir(nasTargetDir, { recursive: true });
+      await fs.promises.access(nasTargetDir, fs.constants.W_OK);
       return nasTargetDir;
     } catch (err) {
-      console.warn(`[ProductImage] Primary NAS directory inaccessible (${err.message}). Using local storage fallback.`);
+      console.warn(
+        `[ProductImage] WARNING: Primary NAS directory "${nasTargetDir}" is inaccessible or failed (${err.message}). Using local storage fallback.`
+      );
     }
+  } else {
+    console.warn(
+      `[ProductImage] WARNING: Primary NAS root/mount "${primaryRoot}" is not accessible on this system. Using local storage fallback.`
+    );
   }
 
-  const fallbackDir = path.resolve(process.cwd(), "public", "uploads", "nas", "VMS", "Product Img", cleanUser, cleanSku);
+  // Local fallback storage (only when primary NAS is unavailable/inaccessible)
+  const fallbackDir = path.resolve(process.cwd(), "public", "uploads", "nas", "product-image", cleanUser, cleanSku);
   await fs.promises.mkdir(fallbackDir, { recursive: true });
+  console.warn(
+    `[ProductImage] NOTE: Using local fallback path: "${fallbackDir}". Files saved here are NOT on the production NAS!`
+  );
   return fallbackDir;
 };
 
 /**
  * Finds an existing image file for a given masterSku and color.
- * Searches across all user directories under VMS/Product Img/
+ * Searches primary NAS location under /mnt/qnap-vms/product-image first,
+ * then checks local fallback if needed.
  */
 export const findProductImageFile = async (masterSku, color, preferredUserName = null) => {
   const cleanSku = sanitizeFileName(masterSku);
@@ -42,10 +95,11 @@ export const findProductImageFile = async (masterSku, color, preferredUserName =
   if (!cleanSku || !cleanColor) return null;
 
   const searchRoots = [];
-  if (process.env.NAS_ROOT_PATH) {
-    searchRoots.push(path.resolve(process.env.NAS_ROOT_PATH, "VMS", "Product Img"));
+  const primaryRoot = getProductImageRoot();
+  if (primaryRoot) {
+    searchRoots.push(primaryRoot);
   }
-  searchRoots.push(path.resolve(process.cwd(), "public", "uploads", "nas", "VMS", "Product Img"));
+  searchRoots.push(path.resolve(process.cwd(), "public", "uploads", "nas", "product-image"));
 
   for (const root of searchRoots) {
     try {
@@ -58,6 +112,8 @@ export const findProductImageFile = async (masterSku, color, preferredUserName =
         if (fs.existsSync(userSkuDir)) {
           const files = await fs.promises.readdir(userSkuDir);
           const matched = files.find((f) => {
+            const ext = path.extname(f).toLowerCase();
+            if (!SUPPORTED_IMAGE_EXTENSIONS.includes(ext)) return false;
             const base = path.parse(f).name.toLowerCase();
             return base === cleanColor;
           });
@@ -65,7 +121,7 @@ export const findProductImageFile = async (masterSku, color, preferredUserName =
         }
       }
 
-      // 2. Scan all user directories under root
+      // 2. Scan all user directories under root (cross-user lookup)
       const userDirs = await fs.promises.readdir(root, { withFileTypes: true });
       for (const dirent of userDirs) {
         if (!dirent.isDirectory()) continue;
@@ -73,6 +129,8 @@ export const findProductImageFile = async (masterSku, color, preferredUserName =
         if (fs.existsSync(skuDir)) {
           const files = await fs.promises.readdir(skuDir);
           const matched = files.find((f) => {
+            const ext = path.extname(f).toLowerCase();
+            if (!SUPPORTED_IMAGE_EXTENSIONS.includes(ext)) return false;
             const base = path.parse(f).name.toLowerCase();
             return base === cleanColor;
           });
@@ -97,10 +155,11 @@ export const findAllProductImagesForSku = async (masterSku) => {
 
   const imagesByColor = {};
   const searchRoots = [];
-  if (process.env.NAS_ROOT_PATH) {
-    searchRoots.push(path.resolve(process.env.NAS_ROOT_PATH, "VMS", "Product Img"));
+  const primaryRoot = getProductImageRoot();
+  if (primaryRoot) {
+    searchRoots.push(primaryRoot);
   }
-  searchRoots.push(path.resolve(process.cwd(), "public", "uploads", "nas", "VMS", "Product Img"));
+  searchRoots.push(path.resolve(process.cwd(), "public", "uploads", "nas", "product-image"));
 
   for (const root of searchRoots) {
     try {
@@ -113,9 +172,13 @@ export const findAllProductImagesForSku = async (masterSku) => {
           const files = await fs.promises.readdir(skuDir);
           for (const f of files) {
             const ext = path.extname(f).toLowerCase();
-            if ([".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg", ".avif"].includes(ext)) {
+            if (SUPPORTED_IMAGE_EXTENSIONS.includes(ext)) {
               const colorName = path.parse(f).name;
-              if (!imagesByColor[colorName]) {
+              // Avoid duplicate colors (case-insensitively check)
+              const existingKey = Object.keys(imagesByColor).find(
+                (k) => k.toLowerCase() === colorName.toLowerCase()
+              );
+              if (!existingKey) {
                 imagesByColor[colorName] = {
                   fileName: f,
                   color: colorName,
@@ -133,4 +196,3 @@ export const findAllProductImagesForSku = async (masterSku) => {
 
   return imagesByColor;
 };
-
