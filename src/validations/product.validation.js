@@ -106,6 +106,11 @@ export const createProductSchema = z.object({
     .or(z.string().transform((val) => (val ? val.split(",").map((s) => s.trim()).filter(Boolean) : [])))
     .optional()
     .default([]),
+  marketplace: z
+    .array(z.string().trim())
+    .or(z.string().transform((val) => (val ? val.split(",").map((s) => s.trim()).filter(Boolean) : ["All"])))
+    .optional()
+    .default(["All"]),
   gender: z.string().trim().max(50).optional().nullable(),
   referenceParty: z.string().trim().max(100).optional().nullable(),
 
@@ -134,6 +139,10 @@ export const updateProductSchema = createProductSchema.partial().extend({
   referenceParty: z.string().trim().max(100).optional().nullable(),
   sizeList: z.string().trim().max(500).optional().nullable(),
   colors: z
+    .array(z.string().trim())
+    .or(z.string().transform((val) => (val ? val.split(",").map((s) => s.trim()).filter(Boolean) : [])))
+    .optional(),
+  marketplace: z
     .array(z.string().trim())
     .or(z.string().transform((val) => (val ? val.split(",").map((s) => s.trim()).filter(Boolean) : [])))
     .optional(),

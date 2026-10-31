@@ -1250,7 +1250,7 @@ export const saveDropdownOptionService = async (userId, data) => {
 
 // ======================================================
 // Save Product Image to NAS
-// Path: NAS / VMS / Product Img / <userName> / <masterSku> / <color>.<ext>
+// Path: /mnt/qnap-vms/product-image/<userName>/<masterSku>/<color>.<ext>
 // ======================================================
 
 export const saveProductImageService = async ({ user, userName, masterSku, color, file }) => {

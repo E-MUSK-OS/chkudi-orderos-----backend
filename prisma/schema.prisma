@@ -326,45 +326,74 @@ model StockTransferItem {
 }
 
 model Product {
-  id                String             @id @default(cuid())
-  productName       String
-  masterSku         String
-  brand             String?
-  category          String
-  subCategory       String?
-  description       String?
-  isActive          Boolean            @default(true)
-  userId            String
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  asin              String?
-  gstRate           Float?
-  hsnCode           String?
-  mrp               String?
-  rackAddress       String?
-  marketplace       String?
-  generateBarcode   String?            @default("No")
-  mfgMonth          String?
-  availability      String?            @default("Public")
-  colors            String[]           @default([])
-  dealerRate        Float?             @default(0)
-  gender            String?
-  isPaired          Boolean            @default(false)
-  minimumStock      Int?               @default(0)
-  openingStock      Int?               @default(0)
-  productCost       Float?             @default(0)
-  productPoints     Float?             @default(1)
-  referenceParty    String?
-  reorderLevelStock Int?               @default(0)
-  retailRate        Float?             @default(0)
-  sizeList          String?
-  sku               String?
-  unit              String?            @default("Pcs")
-  imageUrl          String?
-  imgfileurl        String?
-  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  attributes        ProductAttribute[]
-  variants          ProductVariant[]
+  id String @id @default(cuid())
+
+  // ======================================================
+  // Basic
+  // ======================================================
+
+  productName String
+  masterSku   String
+  sku         String?
+
+  brand       String?
+  category    String
+  subCategory String?
+
+  description String?
+
+  unit            String?  @default("Pcs")
+  sizeList        String?
+  colors          String[] @default([])
+  gender          String?
+  referenceParty  String?
+  marketplace     String?  @default("All")
+
+  productCost       Float?   @default(0)
+  dealerRate        Float?   @default(0)
+  retailRate        Float?   @default(0)
+  openingStock      Int?     @default(0)
+  reorderLevelStock Int?     @default(0)
+  minimumStock      Int?     @default(0)
+  productPoints     Float?   @default(1)
+  isPaired          Boolean  @default(false)
+  availability      String?  @default("Public")
+
+  asin            String?
+  rackAddress     String?
+  generateBarcode String?  @default("No")
+  mrp             String?
+  mfgMonth        String?
+  hsnCode         String?
+  gstRate         Float?
+  imageUrl        String?
+
+  imgfileurl      String?
+
+  // ======================================================
+  // Status
+  // ======================================================
+
+  isActive Boolean @default(true)
+
+  // ======================================================
+  // Relations
+  // ======================================================
+
+  userId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  attributes ProductAttribute[]
+
+  variants ProductVariant[]
+
+  // ======================================================
+  // System
+  // ======================================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, masterSku])
   @@unique([userId, productName])
