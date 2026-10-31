@@ -6,10 +6,12 @@ import {
   getPartyById,
   updateParty,
   deleteParty,
+  bulkImportParties,
 } from "../controllers/party.controller.js";
 
 const router = express.Router();
 
+router.post("/bulk", verifyJWT, bulkImportParties);
 router.post("/", verifyJWT, createParty);
 router.get("/", verifyJWT, getAllParties);
 router.get("/:id", verifyJWT, getPartyById);
