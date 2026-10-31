@@ -132,6 +132,7 @@ export const findUserProfileById = async (id) => {
       isVerified: true,
       isActive: true,
       allowedPages: true,
+      rights: true,
       avatar: true,
       createdAt: true,
       updatedAt: true,

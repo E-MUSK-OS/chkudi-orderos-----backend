@@ -28,6 +28,8 @@ export const createProductVariantSchema = z.object({
     .max(100, "Variant SKU cannot exceed 100 characters."),
 
   asin: z.string().trim().optional().nullable(),
+  myntraSku: z.string().trim().optional().nullable(),
+  fsnCode: z.string().trim().optional().nullable(),
 
   rackAddress: z.string().trim().max(100).optional().nullable(),
 

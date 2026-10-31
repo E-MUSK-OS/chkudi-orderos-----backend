@@ -360,6 +360,8 @@ model Product {
   availability      String?  @default("Public")
 
   asin            String?
+  myntraSku       String?
+  fsnCode         String?
   rackAddress     String?
   generateBarcode String?  @default("No")
   mrp             String?
@@ -396,7 +398,7 @@ model Product {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, masterSku])
-  @@unique([userId, productName])
+
   @@index([userId])
   @@index([category])
   @@index([brand])
@@ -424,6 +426,8 @@ model ProductVariant {
   createdAt          DateTime                  @default(now())
   updatedAt          DateTime                  @updatedAt
   asin               String?
+  myntraSku          String?
+  fsnCode            String?
   rackAddress        String?
   generateBarcode    String?                   @default("No")
   imageUrl           String?

@@ -58,6 +58,20 @@ export const createProductSchema = z.object({
     .optional()
     .nullable(),
 
+  myntraSku: z
+    .string()
+    .trim()
+    .max(100, "Myntra SKU cannot exceed 100 characters.")
+    .optional()
+    .nullable(),
+
+  fsnCode: z
+    .string()
+    .trim()
+    .max(100, "FSN Code cannot exceed 100 characters.")
+    .optional()
+    .nullable(),
+
   rackAddress: z
     .string()
     .trim()

@@ -78,6 +78,7 @@ export const signupService = async ({
       username: user.username,
       email: user.email,
       role: user.role,
+      rights: user.rights || null,
       allowedPages:
         user.allowedPages && user.allowedPages.length > 0
           ? user.allowedPages
@@ -149,6 +150,7 @@ export const loginService = async ({ email, password }) => {
       username: user.username,
       email: user.email,
       role: user.role,
+      rights: user.rights || null,
       allowedPages:
         user.allowedPages && user.allowedPages.length > 0
           ? user.allowedPages
