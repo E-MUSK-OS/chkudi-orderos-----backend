@@ -1,6 +1,6 @@
 import { verifyAccessToken } from "../utils/jwt.js";
-
 import { findUserById } from "../repositories/auth.repository.js";
+import { resolveWorkspaceSuperAdminId } from "../utils/workspace.js";
 
 export const verifyJWT = async (req, res, next) => {
   try {
@@ -40,7 +40,21 @@ export const verifyJWT = async (req, res, next) => {
       });
     }
 
-    req.user = user;
+    // Method 1: Middleware-Level Workspace Resolution
+    const superAdminId = resolveWorkspaceSuperAdminId(user);
+    const originalUserId = user.id;
+
+    req.workspaceId = superAdminId;
+    req.userId = superAdminId;
+    req.actualUserId = originalUserId;
+
+    req.user = {
+      ...user,
+      id: superAdminId,
+      actualId: originalUserId,
+      workspaceId: superAdminId,
+      superAdminId,
+    };
 
     next();
   } catch (error) {

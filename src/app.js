@@ -5,14 +5,12 @@ import helmet from "helmet";
 import compression from "compression";
 import cookieParser from "cookie-parser";
 
-
 import routes from "./routes/index.routes.js";
 import { errorHandler } from "./middleware/error.middleware.js";
 import "./crons/sheetDraft.cron.js";
 import "./crons/amazonOrder.cron.js";
 
 const app = express();
-
 
 const allowedOrigins = [
   "http://localhost:3000",
@@ -22,11 +20,9 @@ const allowedOrigins = [
   "https://chkudi-orderos-frontend.vercel.app",
 ];
 
-
 if (process.env.FRONTEND_URL && !allowedOrigins.includes(process.env.FRONTEND_URL)) {
   allowedOrigins.push(process.env.FRONTEND_URL);
 }
-
 
 app.use(
   cors({
@@ -49,7 +45,6 @@ app.use(
   }),
 );
 
-
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
@@ -58,20 +53,22 @@ app.use(
 app.use(compression());
 app.use(cookieParser());
 
-
 app.use(express.json({ limit: "500mb" }));
 app.use(express.urlencoded({ extended: true, limit: "500mb" }));
 
-
 import path from "path";
 import { getAmazonBatchRootDir } from "./utils/amazonBatchNasPath.js";
+import { getUserProfileImageRootDir } from "./utils/userProfileNasPath.js";
 
 // Serve Amazon batches directly from configured NAS storage
 app.use("/uploads/amazon-batches", express.static(getAmazonBatchRootDir()));
 
+// Serve User profile images directly from configured NAS storage
+app.use("/uploads/user-profile-image", express.static(getUserProfileImageRootDir()));
+app.use("/mnt/qnap-vms/user-profile-image", express.static(getUserProfileImageRootDir()));
+
 // Serve public static folder
 app.use(express.static(path.join(process.cwd(), "public")));
-
 
 app.get("/", (req, res) => {
   res.json({
@@ -80,9 +77,7 @@ app.get("/", (req, res) => {
   });
 });
 
-
 app.use("/api/v1", routes);
 app.use(errorHandler);
-
 
 export default app;

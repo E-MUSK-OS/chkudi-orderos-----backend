@@ -125,7 +125,7 @@ export const refreshToken = async (req, res) => {
 
 export const getMe = async (req, res) => {
   try {
-    const user = await getMeService(req.user.id);
+    const user = await getMeService(req.user.actualId || req.user.id);
 
     return res.status(200).json({
       success: true,

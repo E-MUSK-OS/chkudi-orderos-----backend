@@ -8,155 +8,139 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ==================================================================================
-// ================================ RefreshToken MODEL ==============================
-// ==================================================================================
-
 model RefreshToken {
-  id String @id @default(cuid())
-
-  token String @unique
-
-  userId String
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
   expiresAt DateTime
-
   createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
-
-// ==================================================================================
-// ====================================== USER MODEL ================================
-// ==================================================================================
 
 model User {
-  id String @id @default(cuid())
-
-  fullName String
-  username String @unique
-  email    String @unique
-  password String
-
-  phone String? @db.VarChar(20)
-
-  role Role @default(USER)
-
-  isVerified Boolean @default(false)
-  isActive   Boolean @default(true)
-
-  isLocked     Boolean   @default(false)
-  lockedAt     DateTime?
-  lockedReason String?
-
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @updatedAt
-  refreshTokens          RefreshToken[]
-  vmsscans               VMSScan[]
-  operators              Operator[]
-  accounts               Account[]
-  wallet                 Wallet?
-  tagLoops               TagLoop[]
-  tags                   Tag[]
-  notifications          Notification[]
-  warehouses             Warehouse[]
-  stockTransfers         StockTransfer[]
-  products               Product[]
-  productInventories     ProductInventory[]
-  skuMappings            SkuMapping[]
-  sheetDrafts            SheetDraft[]
-  marketplaceAccounts    MarketplaceAccount[]
-  orders                 Order[]
-  labelTemplates         LabelTemplate[]
-  asinImports            AsinImport[]
-  myntraImports          MyntraImport[]
-  amazonOrders           AmazonOrder[]
-  amazonProcessBatches   AmazonProcessBatch[]
-  amazonAnalytics        AmazonAnalytics[]
-  amazonAnalyticsSetting AmazonAnalyticsSetting?
-  amazonAnalyticsHistory AmazonAnalyticsHistory[]
-  amazonDailyOrderSummaries AmazonDailyOrderSummary[]
-  parties                   Party[]
-  salesChallans             SalesChallan[]
-  purchaseChallans          PurchaseChallan[]
-  webstores                 Webstore[]
-  salesInvoices             SalesInvoice[]
-  purchaseInvoices          PurchaseInvoice[]
+  id                        String                    @id @default(cuid())
+  fullName                  String
+  email                     String                    @unique
+  password                  String
+  role                      Role                      @default(USER)
+  createdAt                 DateTime                  @default(now())
+  updatedAt                 DateTime                  @updatedAt
+  username                  String                    @unique
+  isActive                  Boolean                   @default(true)
+  isVerified                Boolean                   @default(false)
+  phone                     String?                   @db.VarChar(20)
+  isLocked                  Boolean                   @default(false)
+  gender                    String?
+  department                String?
+  company                   String?
+  rights                    String?
+  avatar                    String?
+  ownerId                   String?
+  createdById               String?
+  lockedAt                  DateTime?
+  lockedReason              DateTime?
+  allowedPages              String[]                  @default([])
+  companies                 String[]                  @default([])
+  departments               String[]                  @default([])
+  dob                       DateTime?
+  firstName                 String?
+  lastName                  String?
+  middleName                String?
+  accounts                  Account[]
+  adminMappings             AdminUserMapping[]        @relation("AdminManagedUsers")
+  superAdminMappings        AdminUserMapping[]        @relation("SuperAdminManagedUsers")
+  userMapping               AdminUserMapping?         @relation("UserManagedByAdmin")
+  asinImports               AsinImport[]
+  Company                   Company[]
   dropdownOptions           DropdownOption[]
+  Employee                  Employee[]
+  labelTemplates            LabelTemplate[]
+  marketplaceAccounts       MarketplaceAccount[]
+  notifications             Notification[]
+  operators                 Operator[]
+  orders                    Order[]
+  parties                   Party[]
+  products                  Product[]
+  productInventories        ProductInventory[]
+  purchaseChallans          PurchaseChallan[]
+  purchaseInvoices          PurchaseInvoice[]
+  refreshTokens             RefreshToken[]
+  salesChallans             SalesChallan[]
+  salesInvoices             SalesInvoice[]
+  sheetDrafts               SheetDraft[]
+  skuMappings               SkuMapping[]
+  stockTransfers            StockTransfer[]
+  tags                      Tag[]
+  tagLoops                  TagLoop[]
+  vmsscans                  VMSScan[]
+  wallet                    Wallet?
+  warehouses                Warehouse[]
+  webstores                 Webstore[]
+  amazonAnalytics           AmazonAnalytics[]
+  amazonAnalyticsHistory    AmazonAnalyticsHistory[]
+  amazonAnalyticsSetting    AmazonAnalyticsSetting?
+  amazonDailyOrderSummaries AmazonDailyOrderSummary[]
+  amazonOrders              AmazonOrder[]
+  amazonProcessBatches      AmazonProcessBatch[]
+  myntraImports             MyntraImport[]
+
+  @@index([createdById])
+  @@index([ownerId])
 }
 
-enum Role {
-  USER
-  ADMIN
-}
+model AdminUserMapping {
+  id            String   @id @default(cuid())
+  superAdminId  String?
+  adminId       String?
+  userId        String   @unique
+  allowedPages  String[] @default([])
+  departments   String[] @default([])
+  companies     String[] @default([])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  superAdmin    User?    @relation("SuperAdminManagedUsers", fields: [superAdminId], references: [id], onDelete: SetNull)
+  admin         User?    @relation("AdminManagedUsers", fields: [adminId], references: [id], onDelete: Cascade)
+  user          User     @relation("UserManagedByAdmin", fields: [userId], references: [id], onDelete: Cascade)
 
-// ==================================================================================
-// ================================ EMAIL OTP MODEL =================================
-// ==================================================================================
+  @@index([superAdminId])
+  @@index([adminId])
+  @@index([userId])
+}
 
 model EmailOtp {
-  id String @id @default(cuid())
-
-  email String
-  otp   String @db.VarChar(6)
-
-  purpose OtpPurpose
-
+  id        String     @id @default(cuid())
+  email     String
+  otp       String     @db.VarChar(6)
+  purpose   OtpPurpose
   expiresAt DateTime
-
-  verified Boolean @default(false)
-
-  createdAt DateTime @default(now())
+  verified  Boolean    @default(false)
+  createdAt DateTime   @default(now())
 }
-
-enum OtpPurpose {
-  EMAIL_VERIFICATION
-  FORGOT_PASSWORD
-}
-
-// ==================================================================================
-// ====================================== VMS MODEL =================================
-// ==================================================================================
 
 model VMSScan {
-  id String @id @default(cuid())
-
-  trackingId String
-
-  videoUrl      String?
-  thumbnailUrl  String?
-  filePath      String?
-  thumbnailPath String?
-
-  publicId String?
-  version  Int?
-
-  status            String @default("PENDING")
-  packingScanStatus String @default("PENDING")
-
-  fileName String?
-  fileSize Int?
-
-  duration Int?
-
-  userId String
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  operatorId String?
-
-  operator Operator? @relation(fields: [operatorId], references: [id], onDelete: SetNull)
-
-  accountId String?
-
-  account Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
-
-  cameraName String?
-
-  uploadedAt DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                String    @id @default(cuid())
+  trackingId        String
+  videoUrl          String?
+  thumbnailUrl      String?
+  status            String    @default("PENDING")
+  fileName          String?
+  fileSize          Int?
+  duration          Int?
+  cameraName        String?
+  uploadedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  publicId          String?
+  version           Int?
+  userId            String
+  operatorId        String?
+  accountId         String?
+  packingScanStatus String    @default("PENDING")
+  filePath          String?
+  thumbnailPath     String?
+  account           Account?  @relation(fields: [accountId], references: [id])
+  operator          Operator? @relation(fields: [operatorId], references: [id])
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([trackingId])
   @@index([status])
@@ -165,363 +149,163 @@ model VMSScan {
   @@index([accountId])
 }
 
-enum ScanStatus {
-  PENDING
-  UPLOADING
-  COMPLETED
-  FAILED
-}
-
-// ==================================================================================
-// ====================================== Operator MODEL ============================
-// ==================================================================================
-
 model Operator {
-  id String @id @default(cuid())
-
+  id           String    @id @default(cuid())
   operatorName String
-
-  employeeCode String @unique
-
-  password String
-
-  isActive Boolean @default(true)
-
-  isLoggedIn Boolean @default(false)
-
-  sessionId String?
-
-  lastSeen DateTime?
-
-  userId String
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  scans VMSScan[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  employeeCode String    @unique
+  isActive     Boolean   @default(true)
+  userId       String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  password     String
+  isLoggedIn   Boolean   @default(false)
+  lastSeen     DateTime?
+  sessionId    String?
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scans        VMSScan[]
 
   @@index([userId])
 }
 
-// ==================================================================================
-// ====================================== Account MODEL =============================
-// ==================================================================================
-
 model Account {
-  id String @id @default(cuid())
-
+  id          String    @id @default(cuid())
   accountName String
-
-  userId String
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  vmsscans  VMSScan[]
+  userId      String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vmsscans    VMSScan[]
 
   @@index([userId])
 }
 
 model Wallet {
-  id String @id @default(cuid())
-
-  userId String @unique
-
-  points Int @default(0)
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  id           String              @id @default(cuid())
+  userId       String              @unique
+  points       Int                 @default(0)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions WalletTransaction[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }
 
 model WalletTransaction {
-  id String @id @default(cuid())
-
-  walletId String
-
-  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
-
-  type WalletTransactionType
-
-  points Int
-
+  id           String                @id @default(cuid())
+  walletId     String
+  type         WalletTransactionType
+  points       Int
   balanceAfter Int
-
-  description String?
-
-  referenceId String?
-
-  createdAt DateTime @default(now())
+  description  String?
+  referenceId  String?
+  createdAt    DateTime              @default(now())
+  wallet       Wallet                @relation(fields: [walletId], references: [id], onDelete: Cascade)
 
   @@index([walletId])
 }
 
-enum WalletTransactionType {
-  CREDIT
-  DEBIT
-}
-
-// ==================================================================================
-// ====================================== TAG LOOP MODEL ============================
-// ==================================================================================
-
 model TagLoop {
-  id String @id @default(cuid())
-
-  prefix String
-
-  startTag String
-  endTag   String
-
-  startNumber Int
+  id          String   @id @default(cuid())
+  startTag    String
+  endTag      String
+  total       Int
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   endNumber   Int
-
-  total Int
-
-  userId String
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  tags Tag[]
-
-  notify50 Boolean @default(false)
-
-  notify30 Boolean @default(false)
-
-  notify10 Boolean @default(false)
-
-  notify0 Boolean @default(false)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  prefix      String
+  startNumber Int
+  notify0     Boolean  @default(false)
+  notify10    Boolean  @default(false)
+  notify30    Boolean  @default(false)
+  notify50    Boolean  @default(false)
+  tags        Tag[]
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([prefix])
 }
 
-// ==================================================================================
-// ========================================= TAG MODEL ==============================
-// ==================================================================================
-
 model Tag {
-  id String @id @default(cuid())
-
-  tagNumber String
-
-  status TagStatus @default(AVAILABLE)
-
-  loopId String
-
-  loop TagLoop @relation(fields: [loopId], references: [id], onDelete: Cascade)
-
-  userId String
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  id          String    @id @default(cuid())
+  tagNumber   String
+  status      TagStatus @default(AVAILABLE)
+  loopId      String
   orderItemId String?
-
-  usedAt DateTime?
-
-  orderId String?
-
-  createdAt DateTime @default(now())
+  usedAt      DateTime?
+  createdAt   DateTime  @default(now())
+  userId      String
+  orderId     String?
+  loop        TagLoop   @relation(fields: [loopId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, tagNumber])
   @@index([status])
   @@index([loopId])
 }
 
-enum TagStatus {
-  AVAILABLE
-  USED
-}
-
 model Notification {
-  id String @id @default(cuid())
-
-  title String
-
-  message String
-
-  type NotificationType
-
-  priority NotificationPriority @default(MEDIUM)
-
-  entityId String?
-
-  entityType String?
-
-  status NotificationStatus @default(UNREAD)
-
+  id          String               @id @default(cuid())
+  title       String
+  message     String
+  type        NotificationType
+  priority    NotificationPriority @default(MEDIUM)
+  entityId    String?
+  entityType  String?
+  readAt      DateTime?
+  userId      String
+  createdAt   DateTime             @default(now())
   dismissedAt DateTime?
-
-  readAt DateTime?
-
-  userId String
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
+  status      NotificationStatus   @default(UNREAD)
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  // @@index([isRead])
   @@index([type])
 }
 
-enum NotificationStatus {
-  UNREAD
-  READ
-  DISMISSED
-}
-
-enum NotificationType {
-  TAG_LOOP
-  ORDER
-  WALLET
-  VMS
-  INVENTORY
-  SYSTEM
-}
-
-enum NotificationPriority {
-  LOW
-  MEDIUM
-  HIGH
-  CRITICAL
-}
-
-// ==================================================================================
-// ====================================== Warehouse MODEL ===========================
-// ==================================================================================
-
 model Warehouse {
-  id String @id @default(cuid())
-
-  // ======================================================
-  // Basic
-  // ======================================================
-
+  id            String             @id @default(cuid())
   warehouseName String
   warehouseCode String
-
-  description String?
-
-  isDefault Boolean @default(false)
-
-  isActive Boolean @default(true)
-
-  // ======================================================
-  // Contact
-  // ======================================================
-
+  description   String?
+  isDefault     Boolean            @default(false)
+  isActive      Boolean            @default(true)
   contactPerson String?
-
-  phone String? @db.VarChar(20)
-
-  email String?
-
-  // ======================================================
-  // Address
-  // ======================================================
-
-  addressLine1 String?
-
-  addressLine2 String?
-
-  city String?
-
-  state String?
-
-  country String?
-
-  pincode String?
-
-  // ======================================================
-  // Business
-  // ======================================================
-
-  gstNumber String?
-
-  // ======================================================
-  // Relation
-  // ======================================================
-
-  userId String
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // ======================================================
-  // System
-  // ======================================================
-
-  createdAt DateTime @default(now())
-
-  updatedAt DateTime @updatedAt
-
-  inventories  ProductInventory[]
-  transferFrom StockTransfer[]    @relation("TransferFrom")
-
-  transferTo StockTransfer[] @relation("TransferTo")
+  phone         String?            @db.VarChar(20)
+  email         String?
+  addressLine1  String?
+  addressLine2  String?
+  city          String?
+  state         String?
+  country       String?
+  pincode       String?
+  gstNumber     String?
+  userId        String
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  inventories   ProductInventory[]
+  transferFrom  StockTransfer[]    @relation("TransferFrom")
+  transferTo    StockTransfer[]    @relation("TransferTo")
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, warehouseCode])
   @@unique([userId, warehouseName])
   @@index([userId])
 }
 
-enum TransferStatus {
-  PENDING
-  COMPLETED
-  CANCELLED
-}
-
 model StockTransfer {
-  id String @id @default(cuid())
-
-  transferNumber String
-
-  status TransferStatus @default(PENDING)
-
-  notes String?
-
-  // ======================================================
-  // Warehouse
-  // ======================================================
-
+  id              String              @id @default(cuid())
+  transferNumber  String
+  status          TransferStatus      @default(PENDING)
+  notes           String?
   fromWarehouseId String
-
-  toWarehouseId String
-
-  fromWarehouse Warehouse @relation("TransferFrom", fields: [fromWarehouseId], references: [id])
-
-  toWarehouse Warehouse @relation("TransferTo", fields: [toWarehouseId], references: [id])
-
-  // ======================================================
-  // User
-  // ======================================================
-
-  userId String
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // ======================================================
-  // Items
-  // ======================================================
-
-  items StockTransferItem[]
-
-  // ======================================================
-  // System
-  // ======================================================
-
-  createdAt DateTime @default(now())
-
-  updatedAt DateTime @updatedAt
+  toWarehouseId   String
+  userId          String
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  fromWarehouse   Warehouse           @relation("TransferFrom", fields: [fromWarehouseId], references: [id])
+  toWarehouse     Warehouse           @relation("TransferTo", fields: [toWarehouseId], references: [id])
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items           StockTransferItem[]
 
   @@unique([userId, transferNumber])
   @@index([userId])
@@ -530,94 +314,57 @@ model StockTransfer {
 }
 
 model StockTransferItem {
-  id String @id @default(cuid())
-
-  transferId String
-
+  id               String         @id @default(cuid())
+  transferId       String
   productVariantId String
-
-  quantity Int
-
-  transfer StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
-
-  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
+  quantity         Int
+  productVariant   ProductVariant @relation(fields: [productVariantId], references: [id])
+  transfer         StockTransfer  @relation(fields: [transferId], references: [id], onDelete: Cascade)
 
   @@index([transferId])
   @@index([productVariantId])
 }
 
-// ==================================================================================
-// ====================================== PRODUCT MODEL =============================
-// ==================================================================================
-
 model Product {
-  id String @id @default(cuid())
-
-  // ======================================================
-  // Basic
-  // ======================================================
-
-  productName String
-  masterSku   String
-  sku         String?
-
-  brand       String?
-  category    String
-  subCategory String?
-
-  description String?
-
-  unit            String?
-  sizeList        String?
-  colors          String[]
-  gender          String?
-  referenceParty  String?
-
-  productCost       Float?
-  dealerRate        Float?
-  retailRate        Float?
-  openingStock      Int?
-  reorderLevelStock Int?
-  minimumStock      Int?
-  productPoints     Float?
-  isPaired          Boolean @default(false)
-  availability      String?
-
-  asin            String?
-  rackAddress     String?
-  generateBarcode String? @default("No")
-  mrp             String?
-  mfgMonth        String?
-  hsnCode         String?
-  gstRate         Float?
-  imageUrl        String?
-
-  imgfileurl      String?
-
-  // ======================================================
-  // Status
-  // ======================================================
-
-  isActive Boolean @default(true)
-
-  // ======================================================
-  // Relations
-  // ======================================================
-
-  userId String
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  attributes ProductAttribute[]
-
-  variants ProductVariant[]
-
-  // ======================================================
-  // System
-  // ======================================================
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                String             @id @default(cuid())
+  productName       String
+  masterSku         String
+  brand             String?
+  category          String
+  subCategory       String?
+  description       String?
+  isActive          Boolean            @default(true)
+  userId            String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  asin              String?
+  gstRate           Float?
+  hsnCode           String?
+  mrp               String?
+  rackAddress       String?
+  marketplace       String?
+  generateBarcode   String?            @default("No")
+  mfgMonth          String?
+  availability      String?            @default("Public")
+  colors            String[]           @default([])
+  dealerRate        Float?             @default(0)
+  gender            String?
+  isPaired          Boolean            @default(false)
+  minimumStock      Int?               @default(0)
+  openingStock      Int?               @default(0)
+  productCost       Float?             @default(0)
+  productPoints     Float?             @default(1)
+  referenceParty    String?
+  reorderLevelStock Int?               @default(0)
+  retailRate        Float?             @default(0)
+  sizeList          String?
+  sku               String?
+  unit              String?            @default("Pcs")
+  imageUrl          String?
+  imgfileurl        String?
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attributes        ProductAttribute[]
+  variants          ProductVariant[]
 
   @@unique([userId, masterSku])
   @@unique([userId, productName])
@@ -628,112 +375,49 @@ model Product {
 }
 
 model ProductAttribute {
-  id String @id @default(cuid())
-
-  // ======================================================
-  // Attribute
-  // ======================================================
-
-  attributeName String
-
-  // ======================================================
-  // Relation
-  // ======================================================
-
-  productId String
-
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-
+  id                String                    @id @default(cuid())
+  attributeName     String
+  productId         String
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  product           Product                   @relation(fields: [productId], references: [id], onDelete: Cascade)
   variantAttributes ProductVariantAttribute[]
-
-  // ======================================================
-  // System
-  // ======================================================
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
   @@unique([productId, attributeName])
   @@index([productId])
 }
 
-// ==================================================================================
-// =============================== PRODUCT VARIANT MODEL ============================
-// ==================================================================================
-
 model ProductVariant {
-  id String @id @default(cuid())
-
-  // ======================================================
-  // Variant
-  // ======================================================
-
-  variantSku      String
-  asin            String?
-  rackAddress     String?
-  generateBarcode String? @default("No")
-  imageUrl        String?
-
-  imgfileurl      String?
-
-  isActive Boolean @default(true)
-
-  // ======================================================
-  // Relation
-  // ======================================================
-
-  productId String
-
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  attributes ProductVariantAttribute[]
-
-  // ======================================================
-  // System
-  // ======================================================
-
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  // inventory ProductInventory?
-  inventories        ProductInventory[]
-  stockTransferItems StockTransferItem[]
+  id                 String                    @id @default(cuid())
+  variantSku         String
+  isActive           Boolean                   @default(true)
+  productId          String
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  asin               String?
+  rackAddress        String?
+  generateBarcode    String?                   @default("No")
+  imageUrl           String?
+  imgfileurl         String?
   orderItems         OrderItem[]
+  inventories        ProductInventory[]
+  product            Product                   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  attributes         ProductVariantAttribute[]
+  stockTransferItems StockTransferItem[]
 
   @@unique([productId, variantSku])
   @@index([productId])
 }
 
-// ==================================================================================
-// ========================= PRODUCT VARIANT ATTRIBUTE MODEL ========================
-// ==================================================================================
-
 model ProductVariantAttribute {
-  id String @id @default(cuid())
-
-  // ======================================================
-  // Value
-  // ======================================================
-
-  attributeValue String
-
-  // ======================================================
-  // Relations
-  // ======================================================
-
-  productVariantId String
-
-  productVariant ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
-
+  id                 String           @id @default(cuid())
+  attributeValue     String
+  productVariantId   String
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
   productAttributeId String
-
-  productAttribute ProductAttribute @relation(fields: [productAttributeId], references: [id], onDelete: Cascade)
-
-  // ======================================================
-  // System
-  // ======================================================
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  productAttribute   ProductAttribute @relation(fields: [productAttributeId], references: [id], onDelete: Cascade)
+  productVariant     ProductVariant   @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
 
   @@unique([productVariantId, productAttributeId])
   @@index([productVariantId])
@@ -741,81 +425,35 @@ model ProductVariantAttribute {
 }
 
 model ProductInventory {
-  id String @id @default(cuid())
-
-  // ======================================================
-  // Relations
-  // ======================================================
-
-  // productVariantId String @unique
-  productVariantId String
-  warehouseId      String
-  userId           String
-
-  warehouse      Warehouse      @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
-  productVariant ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
-  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // ======================================================
-  // Stock
-  // ======================================================
-
-  availableStock Int @default(0)
-  reservedStock  Int @default(0)
-  damagedStock   Int @default(0)
-  incomingStock  Int @default(0)
-  reorderLevel   Int @default(10)
-
-  // ===============================
-  // Notification Flags
-  // ===============================
-
-  // lowStock25Notified Boolean @default(false)
-
-  // lowStock10Notified Boolean @default(false)
-
-  // outOfStockNotified Boolean @default(false)
+  id                    String         @id @default(cuid())
+  productVariantId      String
+  userId                String
+  availableStock        Int            @default(0)
+  reservedStock         Int            @default(0)
+  damagedStock          Int            @default(0)
+  incomingStock         Int            @default(0)
+  reorderLevel          Int            @default(10)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
   lastNotificationLevel Int?
-
-  // ======================================================
-  // System
-  // ======================================================
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  // warehouse   Warehouse? @relation(fields: [warehouseId], references: [id])
-  // warehouseId String?
+  warehouseId           String
+  productVariant        ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
+  user                  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  warehouse             Warehouse      @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
 
   @@unique([productVariantId, warehouseId])
   @@index([userId])
   @@index([availableStock])
 }
 
-// ==================================================================================
-// ============================== SKU MAPPING MODEL =================================
-// ==================================================================================
-
 model SkuMapping {
-  id String @id @default(cuid())
-
-  // ======================================================
-  // User
-  // ======================================================
-
-  userId String
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // ======================================================
-  // SKU Mapping
-  // ======================================================
-
-  // Required
-  shortSku   String
-  barcodeSku String
-
-  // Optional
+  id           String   @id @default(cuid())
+  userId       String
+  shortSku     String
+  barcodeSku   String
   ordercookSku String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
   brandName    String?
   asinBarcode  String?
   color        String?
@@ -825,14 +463,7 @@ model SkuMapping {
   qty          Int?
   mrp          String?
   mfgMonth     String?
-
-  // ======================================================
-  // System
-  // ======================================================
-
-  createdAt DateTime @default(now())
-
-  updatedAt DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, shortSku])
   @@index([userId])
@@ -840,179 +471,90 @@ model SkuMapping {
 }
 
 model SheetDraft {
-  id String @id @default(cuid())
-
-  userId String
-  rows   Json
-
+  id        String   @id @default(cuid())
+  userId    String
+  rows      Json
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([updatedAt])
 }
 
-// ==================================================================================
-// ============================== MARKETPLACE MODEL =================================
-// ==================================================================================
-
 model Marketplace {
-  id String @id @default(cuid())
-
-  marketplaceName String
-
-  marketplaceCode String @unique
-
-  description String?
-
-  displayOrder Int @default(0)
-
-  isActive Boolean @default(true)
-
+  id                  String               @id @default(cuid())
+  marketplaceName     String
+  marketplaceCode     String               @unique
+  description         String?
+  isActive            Boolean              @default(true)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  displayOrder        Int                  @default(0)
   marketplaceAccounts MarketplaceAccount[] @relation("MarketplaceToAccount")
-
-  createdAt DateTime @default(now())
-
-  updatedAt DateTime @updatedAt
 
   @@index([marketplaceCode])
 }
 
-// ==================================================================================
-// ========================== MARKETPLACE ACCOUNT MODEL ==============================
-// ==================================================================================
-
 model MarketplaceAccount {
-  id String @id @default(cuid())
-
-  // ======================================================
-  // Relations
-  // ======================================================
-
-  userId String
-
-  marketplaceId String
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  marketplace Marketplace @relation("MarketplaceToAccount", fields: [marketplaceId], references: [id])
-
-  // ======================================================
-  // Seller Information
-  // ======================================================
-
-  sellerName String @db.VarChar(150)
-
-  sellerCode String @db.VarChar(100)
-
-  displayName String?
-
-  // ======================================================
-  // Status
-  // ======================================================
-
-  isActive Boolean @default(true)
-
+  id               String                      @id @default(cuid())
+  userId           String
+  marketplaceId    String
+  sellerName       String                      @db.VarChar(150)
+  sellerCode       String                      @db.VarChar(100)
+  displayName      String?
+  isActive         Boolean                     @default(true)
   connectionStatus MarketplaceConnectionStatus @default(NOT_CONNECTED)
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
+  marketplace      Marketplace                 @relation("MarketplaceToAccount", fields: [marketplaceId], references: [id])
+  user             User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
   connection       MarketplaceConnection?
   orders           Order[]
-
-  // ======================================================
-  // System
-  // ======================================================
-
-  createdAt DateTime @default(now())
-
-  updatedAt DateTime @updatedAt
 
   @@unique([userId, marketplaceId, sellerCode])
   @@index([userId])
   @@index([marketplaceId])
 }
 
-enum MarketplaceConnectionStatus {
-  NOT_CONNECTED
-  CONNECTING
-  CONNECTED
-  FAILED
-}
-
 model MarketplaceConnection {
-  id String @id @default(cuid())
-
-  marketplaceAccountId String @unique
-
-  marketplaceAccount MarketplaceAccount @relation(fields: [marketplaceAccountId], references: [id], onDelete: Cascade)
-
-  credentials Json
-
-  environment MarketplaceEnvironment @default(PRODUCTION)
-
-  status MarketplaceConnectionStatus @default(NOT_CONNECTED)
-
-  lastConnectedAt DateTime?
-
-  lastSyncAt DateTime?
-
-  lastError String?
-
-  createdAt DateTime @default(now())
-
-  updatedAt DateTime @updatedAt
+  id                   String                      @id @default(cuid())
+  marketplaceAccountId String                      @unique
+  credentials          Json
+  environment          MarketplaceEnvironment      @default(PRODUCTION)
+  status               MarketplaceConnectionStatus @default(NOT_CONNECTED)
+  lastConnectedAt      DateTime?
+  lastSyncAt           DateTime?
+  lastError            String?
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime                    @updatedAt
+  marketplaceAccount   MarketplaceAccount          @relation(fields: [marketplaceAccountId], references: [id], onDelete: Cascade)
 }
-
-enum MarketplaceEnvironment {
-  SANDBOX
-  PRODUCTION
-}
-
-// ==================================================================================
-// =================================== ORDER MODELS =================================
-// ==================================================================================
 
 model Order {
-  id String @id @default(cuid())
-
-  orderNumber String
-
-  channelOrderId String?
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  id                   String              @id @default(cuid())
+  orderNumber          String
+  channelOrderId       String?
+  userId               String
   marketplaceAccountId String?
-  marketplaceAccount   MarketplaceAccount? @relation(fields: [marketplaceAccountId], references: [id], onDelete: SetNull)
-
-  customerName  String
-  customerEmail String?
-  customerPhone String? @db.VarChar(20)
-
-  shippingAddress String?
-
-  status OrderStatus @default(PENDING)
-
-  paymentStatus PaymentStatus @default(PENDING)
-
-  paymentMethod String?
-
-  totalAmount Float @default(0)
-
-  shippingAmount Float @default(0)
-
-  discountAmount Float @default(0)
-
-  courierName String?
-
-  trackingId String?
-
-  notes String?
-
-  items OrderItem[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  customerName         String
+  customerEmail        String?
+  customerPhone        String?             @db.VarChar(20)
+  shippingAddress      String?
+  status               OrderStatus         @default(PENDING)
+  paymentStatus        PaymentStatus       @default(PENDING)
+  paymentMethod        String?
+  totalAmount          Float               @default(0)
+  shippingAmount       Float               @default(0)
+  discountAmount       Float               @default(0)
+  courierName          String?
+  trackingId           String?
+  notes                String?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  marketplaceAccount   MarketplaceAccount? @relation(fields: [marketplaceAccountId], references: [id])
+  user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items                OrderItem[]
 
   @@unique([userId, orderNumber])
   @@index([userId])
@@ -1023,99 +565,56 @@ model Order {
 }
 
 model OrderItem {
-  id String @id @default(cuid())
-
-  orderId String
-  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
-
+  id               String          @id @default(cuid())
+  orderId          String
   productVariantId String?
-  productVariant   ProductVariant? @relation(fields: [productVariantId], references: [id], onDelete: SetNull)
-
-  productName String
-
-  sku String
-
-  quantity Int @default(1)
-
-  unitPrice Float @default(0)
-
-  totalPrice Float @default(0)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  productName      String
+  sku              String
+  quantity         Int             @default(1)
+  unitPrice        Float           @default(0)
+  totalPrice       Float           @default(0)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  order            Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productVariant   ProductVariant? @relation(fields: [productVariantId], references: [id])
 
   @@index([orderId])
   @@index([productVariantId])
   @@index([sku])
 }
 
-enum OrderStatus {
-  PENDING
-  PROCESSING
-  PACKED
-  SHIPPED
-  DELIVERED
-  CANCELLED
-  RETURNED
-}
-
-enum PaymentStatus {
-  PENDING
-  PAID
-  FAILED
-  REFUNDED
-}
-
-// ==================================================================================
-// ============================= LABEL TEMPLATE MODEL ===============================
-// ==================================================================================
-
 model LabelTemplate {
-  id String @id @default(cuid())
-
-  name               String
+  id                 String   @id @default(cuid())
+  userId             String
   marketplaceId      String?
+  name               String
   backgroundImageUrl String?
+  layoutJson         Json
+  settings           Json
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
   thumbnailUrl       String?
-
-  layoutJson Json
-  settings   Json
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
 
-// ==================================================================================
-// ============================= ASIN IMPORT MODEL ==================================
-// ==================================================================================
-
 model AsinImport {
-  id String @id @default(cuid())
-
+  id              String   @id @default(cuid())
   asin            String
   sku             String
   generateBarcode String?
   rackAddress     String?
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  userId          String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([asin])
   @@index([sku])
 }
 
-// ==================================================================================
-// ============================ MYNTRA IMPORT MODEL ================================
-// ==================================================================================
 model MyntraImport {
   id              String   @id @default(cuid())
   rackAddress     String?
@@ -1123,9 +622,9 @@ model MyntraImport {
   sellerSku       String?
   generateBarcode String?
   userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([myntraSku])
@@ -1134,31 +633,22 @@ model MyntraImport {
   @@map("myntra_imports")
 }
 
-// ==================================================================================
-// ============================= AMAZON ORDER MODEL =================================
-// ==================================================================================
-
 model AmazonOrder {
-  id String @id @default(cuid())
-
-  invoice   String // Invoices
-  orderId   String // Amazon Order ID
-  awb       String // AWB Tracking
-  asin      String // ASIN
-  sellerSku String // Seller SKU
-  customer  String // Customer
-
-  packingScanStatus String @default("PENDING") // "PENDING" or "SCANNED"
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  batchId String?
-  batch   AmazonProcessBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  expiresAt DateTime // 7 days expiration timestamp
+  id                String              @id @default(cuid())
+  invoice           String
+  orderId           String
+  awb               String
+  asin              String
+  sellerSku         String
+  customer          String
+  packingScanStatus String              @default("PENDING")
+  userId            String
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  expiresAt         DateTime
+  batchId           String?
+  batch             AmazonProcessBatch? @relation(fields: [batchId], references: [id])
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([batchId])
@@ -1170,47 +660,34 @@ model AmazonOrder {
   @@map("amazon_orders")
 }
 
-// ==================================================================================
-// ========================= AMAZON PROCESS BATCH MODEL ==============================
-// ==================================================================================
-
 model AmazonProcessBatch {
-  id String @id @default(cuid())
-
-  batchNumber String?
-  batchDate   DateTime // Date of the batch
-
-  totalOrders     Int   @default(0)
-  matchedCount    Int   @default(0)
-  mismatchCount   Int   @default(0)
-  matchPercentage Float @default(0)
-
-  pdfFileName String?
-  zplFileName String?
-
-  summary Json // AmazonOrderSummary object
-  results Json // AmazonComparisonResult[] array (matched & comparison order records)
-
-  // Document URLs and relative file paths
+  id                  String        @id @default(cuid())
+  batchNumber         String?
+  batchDate           DateTime
+  totalOrders         Int           @default(0)
+  matchedCount        Int           @default(0)
+  mismatchCount       Int           @default(0)
+  matchPercentage     Float         @default(0)
+  pdfFileName         String?
+  zplFileName         String?
+  summary             Json
+  results             Json
   combinedPdfPath     String?
   combinedPdfUrl      String?
   zplPdfPath          String?
   zplPdfUrl           String?
   originalPdfPath     String?
   originalPdfUrl      String?
+  userId              String
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  expiresAt           DateTime
   unmatchedPdfPath    String?
   unmatchedPdfUrl     String?
   unmatchedZplPdfPath String?
   unmatchedZplPdfUrl  String?
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  amazonOrders AmazonOrder[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  expiresAt DateTime // 6:00 PM on the 7th day
+  amazonOrders        AmazonOrder[]
+  user                User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([batchDate])
@@ -1219,24 +696,16 @@ model AmazonProcessBatch {
   @@map("amazon_process_batches")
 }
 
-// ==================================================================================
-// ==================== AMAZON DAILY ORDER SUMMARY MODEL ===========================
-// ==================================================================================
-
 model AmazonDailyOrderSummary {
-  id String @id @default(cuid())
-
-  date String // "YYYY-MM-DD" strictly in IST (Asia/Kolkata), e.g., "2026-10-24"
-
-  totalOrders   Int @default(0) // Total processed/printed orders for this day
-  scannedOrders Int @default(0) // Orders verified via AWB packing scan
-  pendingOrders Int @default(0) // Orders pending packing scan
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(cuid())
+  date          String
+  totalOrders   Int      @default(0)
+  scannedOrders Int      @default(0)
+  pendingOrders Int      @default(0)
+  userId        String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, date])
   @@index([userId])
@@ -1244,34 +713,22 @@ model AmazonDailyOrderSummary {
   @@map("amazon_daily_order_summaries")
 }
 
-// ==================================================================================
-// ============================= AMAZON ANALYTICS MODEL =============================
-// ==================================================================================
-
 model AmazonAnalytics {
-  id String @id @default(cuid())
-
-  sku String
-  url String
-
-  operatorName   String?
-  day            String?
-
-  // Scraped Data
+  id             String                   @id @default(cuid())
+  sku            String
+  url            String
+  userId         String
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
   asin           String?
   bsrCategory    String?
   bsrSubcategory String?
+  lastScrapedAt  DateTime?
   rating         Float?
   reviewCount    Int?
-  lastScrapedAt  DateTime?
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  
+  day            String?
+  operatorName   String?
+  user           User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
   history        AmazonAnalyticsHistory[]
 
   @@unique([userId, sku])
@@ -1282,117 +739,103 @@ model AmazonAnalytics {
   @@map("amazon_analytics")
 }
 
-// ==================================================================================
-// ========================= AMAZON ANALYTICS SETTING MODEL =========================
-// ==================================================================================
-
 model AmazonAnalyticsSetting {
-  id String @id @default(cuid())
-
-  userId String @unique
-  time   String
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  time      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("amazon_analytics_settings")
 }
 
-// ==================================================================================
-// ========================= AMAZON ANALYTICS HISTORY MODEL =========================
-// ==================================================================================
-
 model AmazonAnalyticsHistory {
-  id                String   @id @default(cuid())
-
+  id                String          @id @default(cuid())
   amazonAnalyticsId String
-  amazonAnalytics   AmazonAnalytics @relation(fields: [amazonAnalyticsId], references: [id], onDelete: Cascade)
-
-  userId            String
-  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   sellerSku         String
-  dateString        String
-
   asin              String?
   clothingRank      String?
   rank              String?
   reviews           Int?
   rating            Float?
-
-  createdAt         DateTime @default(now())
+  createdAt         DateTime        @default(now())
+  userId            String
+  dateString        String
+  amazonAnalytics   AmazonAnalytics @relation(fields: [amazonAnalyticsId], references: [id], onDelete: Cascade)
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([amazonAnalyticsId, dateString])
   @@index([amazonAnalyticsId])
   @@map("amazon_analytics_history")
 }
 
-// ==================================================================================
-// ============================= PARTY / LEDGER BOOK MODEL ==========================
-// ==================================================================================
-
 model Party {
-  id             String         @id @default(cuid())
-  userId         String
-  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  partyName      String
-  accountCode    String?
-  alias          String?
-  accountHead    String         @default("Sundry Debtors")
-  contactPerson  String?
-  email          String?
-  phone          String?
-  whatsapp       String?
+  id                    String            @id @default(cuid())
+  userId                String
+  partyName             String
+  accountCode           String?
+  alias                 String?
+  accountHead           String            @default("Sundry Debtors")
+  contactPerson         String?
+  email                 String?
+  phone                 String?
+  whatsapp              String?
   addressLine1          String?
   addressLine2          String?
-  addressLine3          String?
-  area                  String?
   city                  String?
   state                 String?
-  country               String?        @default("India")
+  country               String?           @default("India")
   pincode               String?
-
-  // Shipping Address
-  shippingSameAsBilling Boolean        @default(true)
+  gstin                 String?
+  pan                   String?
+  bankName              String?
+  accountNumber         String?
+  ifsc                  String?
+  openingBalance        Float             @default(0)
+  balanceType           String            @default("Credit")
+  joinDate              DateTime          @default(now())
+  isActive              Boolean           @default(true)
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  addressLine3          String?
+  area                  String?
+  billDueDays           Int               @default(0)
+  creditLimit           Float             @default(0)
+  cstDate               String?
+  cstNo                 String?
+  debitLimit            Float             @default(0)
+  gstDate               String?
+  otherTaxDate          String?
+  otherTaxNo            String?
+  serviceTaxDate        String?
+  serviceTaxNo          String?
   shippingAddress1      String?
   shippingAddress2      String?
   shippingAddress3      String?
   shippingArea          String?
-  shippingCountry       String?        @default("India")
-  shippingState         String?
   shippingCity          String?
-  shippingPincode       String?
+  shippingCountry       String?           @default("India")
   shippingPhone         String?
-
-  // Accounting Details
-  pan                   String?
-  gstin                 String?
-  gstDate               String?
-  cstNo                 String?
-  cstDate               String?
-  serviceTaxNo          String?
-  serviceTaxDate        String?
-  otherTaxNo            String?
-  otherTaxDate          String?
-  billDueDays           Int            @default(0)
-  creditLimit           Float          @default(0)
-  debitLimit            Float          @default(0)
-
-  bankName              String?
-  accountNumber         String?
-  ifsc                  String?
-  openingBalance        Float          @default(0)
-  balanceType           String         @default("Credit")
-  joinDate              DateTime       @default(now())
-  isActive              Boolean        @default(true)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  challans          SalesChallan[]
-  purchaseChallans  PurchaseChallan[]
-  salesInvoices     SalesInvoice[]
-  purchaseInvoices  PurchaseInvoice[]
+  shippingPincode       String?
+  shippingSameAsBilling Boolean           @default(true)
+  shippingState         String?
+  legalName             String?
+  msmeNumber            String?
+  accountHolderName     String?
+  branchName            String?
+  accountType           String?           @default("Current")
+  creditDebitLimit      Float?            @default(0)
+  refContactName        String?
+  logoUrl               String?
+  completionPercentage  Int?              @default(0)
+  createdByName         String?
+  updatedByName         String?
+  user                  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purchaseChallans      PurchaseChallan[]
+  purchaseInvoices      PurchaseInvoice[]
+  challans              SalesChallan[]
+  salesInvoices         SalesInvoice[]
 
   @@unique([userId, partyName])
   @@index([userId])
@@ -1400,16 +843,10 @@ model Party {
   @@index([accountHead])
 }
 
-// ==================================================================================
-// ============================== SALES CHALLAN MODEL ===============================
-// ==================================================================================
-
 model SalesChallan {
   id            String             @id @default(cuid())
   userId        String
-  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   partyId       String?
-  party         Party?             @relation(fields: [partyId], references: [id], onDelete: SetNull)
   partyName     String
   contactNo     String?
   challanNo     String
@@ -1427,6 +864,8 @@ model SalesChallan {
   isStockOut    Boolean            @default(false)
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
+  party         Party?             @relation(fields: [partyId], references: [id])
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   items         SalesChallanItem[]
   invoices      SalesInvoice[]
 
@@ -1436,14 +875,9 @@ model SalesChallan {
   @@index([challanDate])
 }
 
-// ==================================================================================
-// ============================ SALES CHALLAN ITEM MODEL ============================
-// ==================================================================================
-
 model SalesChallanItem {
   id           String       @id @default(cuid())
   challanId    String
-  challan      SalesChallan @relation(fields: [challanId], references: [id], onDelete: Cascade)
   itemNo       Int          @default(1)
   sku          String
   name         String
@@ -1456,21 +890,16 @@ model SalesChallanItem {
   printBarcode Boolean      @default(true)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
+  challan      SalesChallan @relation(fields: [challanId], references: [id], onDelete: Cascade)
 
   @@index([challanId])
   @@index([sku])
 }
 
-// ==================================================================================
-// ============================= PURCHASE CHALLAN MODEL =============================
-// ==================================================================================
-
 model PurchaseChallan {
   id               String                @id @default(cuid())
   userId           String
-  user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   supplierId       String?
-  supplier         Party?                @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   supplierName     String
   contactNo        String?
   challanNo        String
@@ -1491,6 +920,8 @@ model PurchaseChallan {
   isStockIn        Boolean               @default(false)
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
+  supplier         Party?                @relation(fields: [supplierId], references: [id])
+  user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   items            PurchaseChallanItem[]
   invoices         PurchaseInvoice[]
 
@@ -1500,14 +931,9 @@ model PurchaseChallan {
   @@index([challanDate])
 }
 
-// ==================================================================================
-// ========================== PURCHASE CHALLAN ITEM MODEL ===========================
-// ==================================================================================
-
 model PurchaseChallanItem {
   id             String          @id @default(cuid())
   challanId      String
-  challan        PurchaseChallan @relation(fields: [challanId], references: [id], onDelete: Cascade)
   itemNo         Int             @default(1)
   sku            String
   name           String
@@ -1522,79 +948,62 @@ model PurchaseChallanItem {
   printBarcode   Boolean         @default(true)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
+  challan        PurchaseChallan @relation(fields: [challanId], references: [id], onDelete: Cascade)
 
   @@index([challanId])
   @@index([sku])
 }
 
-// ==================================================================================
-// ================================ WEBSTORE MODEL ==================================
-// ==================================================================================
-
 model Webstore {
-  id               String    @id @default(cuid())
-  userId           String
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // 1. Basic Information
-  code             Int       @default(0)
-  marketplaceName  String    // e.g. "Amazon", "AJIO-DROPSHIP", "Flipkart", "Myntra", "CloudTail"
-  marketplaceLogo  String?   // URL or channel identifier
-  storeName        String    // Web Store Name (e.g. "Chakudee Fashion-DROPSHIP")
-  parentOrChild    String    @default("Parent") // "Parent" | "Child"
-  registeredEmail  String?
-  contactUsEmail   String?
-  registeredPhone  String?
-  contactUsPhone   String?
-  registrationDate DateTime  @default(now())
-  skuCount         Int       @default(0)
-
-  // 2. Address / Billing Details
-  billTo           String?   // Company Name / Billing Entity
-  address1         String?
-  address2         String?
-  city             String?
-  pincode          String?
-  state            String?
-  gstNo            String?
-
-  // 3. Bank Account
-  bankAccount      String?   // e.g. "BOI Saving A/C 7199"
-  bankIfscCode     String?
-  lastPaymentDate  DateTime?
-
-  // 4. Configuration Flags
-  isActive                        Boolean   @default(true)
-  returnActive                    Boolean   @default(true)
-  isOnTpBased                     Boolean   @default(false)
-  isOnResellerBased               Boolean   @default(false)
-  validateStoreBeforeUploading    Boolean   @default(false)
-  isManifestBasedSalesInvoice     Boolean   @default(false)
-  warehouseCode                   String?
-
-  // 5. Legacy API Configuration
-  sellerId         String?
-  secretKey        String?
-  marketplaceId    String?
-  authToken        String?
-  awsAccessKey     String?
-  endPoints        String?   @default("https://mws.amazonservices.in")
-
-  // 6. Selling Partner API Configuration (SP-API)
-  spapiOauthCode   String?
-  sellingPartnerId String?
-  mwsAuthToken     String?
-  refreshToken     String?
-  accessToken      String?
-  spMarketplaceId  String?   // e.g. "A21TJRUUN4KGV"
-  spClientId       String?
-  spClientSecret   String?
-  spAwsAccessKey   String?
-  spAwsSecretKey   String?
-
-  // Timestamps
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id                           String    @id @default(cuid())
+  userId                       String
+  code                         Int       @default(0)
+  marketplaceName              String
+  marketplaceLogo              String?
+  storeName                    String
+  parentOrChild                String    @default("Parent")
+  registeredEmail              String?
+  contactUsEmail               String?
+  registeredPhone              String?
+  contactUsPhone               String?
+  registrationDate             DateTime  @default(now())
+  skuCount                     Int       @default(0)
+  billTo                       String?
+  address1                     String?
+  address2                     String?
+  city                         String?
+  pincode                      String?
+  state                        String?
+  gstNo                        String?
+  bankAccount                  String?
+  bankIfscCode                 String?
+  lastPaymentDate              DateTime?
+  isActive                     Boolean   @default(true)
+  returnActive                 Boolean   @default(true)
+  isOnTpBased                  Boolean   @default(false)
+  isOnResellerBased            Boolean   @default(false)
+  validateStoreBeforeUploading Boolean   @default(false)
+  isManifestBasedSalesInvoice  Boolean   @default(false)
+  warehouseCode                String?
+  sellerId                     String?
+  secretKey                    String?
+  marketplaceId                String?
+  authToken                    String?
+  awsAccessKey                 String?
+  endPoints                    String?   @default("https://mws.amazonservices.in")
+  spapiOauthCode               String?
+  sellingPartnerId             String?
+  mwsAuthToken                 String?
+  refreshToken                 String?
+  accessToken                  String?
+  spMarketplaceId              String?
+  spClientId                   String?
+  spClientSecret               String?
+  spAwsAccessKey               String?
+  spAwsSecretKey               String?
+  createdAt                    DateTime  @default(now())
+  updatedAt                    DateTime  @updatedAt
+  user                         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, storeName])
   @@index([userId])
@@ -1602,85 +1011,66 @@ model Webstore {
   @@index([isActive])
 }
 
-// ==================================================================================
-// ============================== SALES INVOICE MODEL ===============================
-// ==================================================================================
-
 model SalesInvoice {
-  id                    String             @id @default(cuid())
-  userId                String
-  user                  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Link to Challan & Party
-  challanId             String?
-  challan               SalesChallan?      @relation(fields: [challanId], references: [id], onDelete: SetNull)
-  partyId               String?
-  party                 Party?             @relation(fields: [partyId], references: [id], onDelete: SetNull)
-
-  // Header Details
-  invoiceType           String             @default("Tax Invoice")
-  invoiceNo             String
-  invoiceDate           DateTime           @default(now())
-  challanNo             String?
-  challanDate           DateTime?
-  partyGstn             String?
-  stateCode             String?
-  brokerName            String?
-  consigneeName         String?
-  editOn                Boolean            @default(true)
-
-  // Remarks & Logistics
-  remarks               String?
-  ewayBillNo            String?
-  expenseOnSales        Float              @default(0.0)
-  hasReceipt            Boolean            @default(false)
-  receivedAmount        Float?             @default(0.0)
-  receiptMode           String?
-  receiptAccount        String?
-  transactionType       String?
-  transactionDate       DateTime?
-  chequeNo              String?
-  bankName              String?
-
-  // Billing Party Details
-  billingPartyName      String
-  billingAddress        String?
-  billingCity           String?
-  billingState          String?
-  billingPincode        String?
-  billingEmail          String?
-  billingMobile         String?
-
-  // Shipping Party Details
-  shippingPartyName     String?
-  shippingAddress       String?
-  shippingAddress2      String?
-  shippingCity          String?
-  shippingState         String?
-  shippingPincode       String?
-  shippingContact       String?
-  courierPartner        String?
-  trackingNo            String?
-
-  // Totals & Calculations
-  totalQuantity         Int                @default(0)
-  totalAmount           Float              @default(0.0)
-  totalDiscount         Float              @default(0.0)
-  amountBeforeTax       Float              @default(0.0)
-  sgstAmount            Float              @default(0.0)
-  cgstAmount            Float              @default(0.0)
-  igstAmount            Float              @default(0.0)
-  totalGst              Float              @default(0.0)
-  amountAfterTax        Float              @default(0.0)
-  roundOff              Float              @default(0.0)
-  netAmount             Float              @default(0.0)
-
-  status                String             @default("Generated")
-
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
-
-  items                 SalesInvoiceItem[]
+  id                String             @id @default(cuid())
+  userId            String
+  challanId         String?
+  partyId           String?
+  invoiceType       String             @default("Tax Invoice")
+  invoiceNo         String
+  invoiceDate       DateTime           @default(now())
+  challanNo         String?
+  challanDate       DateTime?
+  partyGstn         String?
+  stateCode         String?
+  brokerName        String?
+  consigneeName     String?
+  editOn            Boolean            @default(true)
+  remarks           String?
+  ewayBillNo        String?
+  expenseOnSales    Float              @default(0.0)
+  hasReceipt        Boolean            @default(false)
+  billingPartyName  String
+  billingAddress    String?
+  billingCity       String?
+  billingState      String?
+  billingPincode    String?
+  billingEmail      String?
+  billingMobile     String?
+  shippingPartyName String?
+  shippingAddress   String?
+  shippingAddress2  String?
+  shippingCity      String?
+  shippingState     String?
+  shippingPincode   String?
+  shippingContact   String?
+  courierPartner    String?
+  trackingNo        String?
+  totalQuantity     Int                @default(0)
+  totalAmount       Float              @default(0.0)
+  totalDiscount     Float              @default(0.0)
+  amountBeforeTax   Float              @default(0.0)
+  sgstAmount        Float              @default(0.0)
+  cgstAmount        Float              @default(0.0)
+  igstAmount        Float              @default(0.0)
+  totalGst          Float              @default(0.0)
+  amountAfterTax    Float              @default(0.0)
+  roundOff          Float              @default(0.0)
+  netAmount         Float              @default(0.0)
+  status            String             @default("Generated")
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  bankName          String?
+  chequeNo          String?
+  receiptAccount    String?
+  receiptMode       String?
+  receivedAmount    Float?             @default(0.0)
+  transactionDate   DateTime?
+  transactionType   String?
+  challan           SalesChallan?      @relation(fields: [challanId], references: [id])
+  party             Party?             @relation(fields: [partyId], references: [id])
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items             SalesInvoiceItem[]
 
   @@unique([userId, invoiceNo])
   @@index([userId])
@@ -1688,124 +1078,95 @@ model SalesInvoice {
   @@index([challanNo])
   @@index([invoiceDate])
 }
-
-// ==================================================================================
-// ============================ SALES INVOICE ITEM MODEL ============================
-// ==================================================================================
 
 model SalesInvoiceItem {
-  id                    String             @id @default(cuid())
-  invoiceId             String
-  invoice               SalesInvoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-
-  itemNo                Int                @default(1)
-  sku                   String
-  particular            String
-  hsn                   String?
-
-  quantity              Int                @default(1)
-  rate                  Float              @default(0.0)
-  amount                Float              @default(0.0)
-
-  discountPercent       Float              @default(0.0)
-  discountAmount        Float              @default(0.0)
-  taxableAmount         Float              @default(0.0)
-
-  sgstRate              Float              @default(0.0)
-  sgstAmount            Float              @default(0.0)
-  cgstRate              Float              @default(0.0)
-  cgstAmount            Float              @default(0.0)
-  igstRate              Float              @default(0.0)
-  igstAmount            Float              @default(0.0)
-
-  total                 Float              @default(0.0)
-
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
+  id              String       @id @default(cuid())
+  invoiceId       String
+  itemNo          Int          @default(1)
+  sku             String
+  particular      String
+  hsn             String?
+  quantity        Int          @default(1)
+  rate            Float        @default(0.0)
+  amount          Float        @default(0.0)
+  discountPercent Float        @default(0.0)
+  discountAmount  Float        @default(0.0)
+  taxableAmount   Float        @default(0.0)
+  sgstRate        Float        @default(0.0)
+  sgstAmount      Float        @default(0.0)
+  cgstRate        Float        @default(0.0)
+  cgstAmount      Float        @default(0.0)
+  igstRate        Float        @default(0.0)
+  igstAmount      Float        @default(0.0)
+  total           Float        @default(0.0)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  invoice         SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   @@index([invoiceId])
   @@index([sku])
 }
 
-// ==================================================================================
-// ============================= PURCHASE INVOICE MODEL =============================
-// ==================================================================================
-
 model PurchaseInvoice {
-  id                    String                @id @default(cuid())
-  userId                String
-  user                  User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Link to Purchase Challan & Supplier Party
-  challanId             String?
-  challan               PurchaseChallan?      @relation(fields: [challanId], references: [id], onDelete: SetNull)
-  supplierId            String?
-  supplier              Party?                @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-
-  // Header Details
-  invoiceType           String                @default("Tax Invoice")
-  invoiceNo             String
-  invoiceDate           DateTime              @default(now())
-  challanNo             String?
-  challanDate           DateTime?
-  partyGstn             String?
-  stateCode             String?
-  brokerName            String?
-  consigneeName         String?
-  editOn                Boolean               @default(true)
-
-  // Remarks & Logistics
-  remarks               String?
-  ewayBillNo            String?
-  expenseOnPurchase     Float                 @default(0.0)
-  hasReceipt            Boolean               @default(false)
-  receivedAmount        Float?                @default(0.0)
-  receiptMode           String?
-  receiptAccount        String?
-  transactionType       String?
-  transactionDate       DateTime?
-  chequeNo              String?
-  bankName              String?
-
-  // Billing Party Details
-  billingPartyName      String
-  billingAddress        String?
-  billingCity           String?
-  billingState          String?
-  billingPincode        String?
-  billingEmail          String?
-  billingMobile         String?
-
-  // Shipping Party Details
-  shippingPartyName     String?
-  shippingAddress       String?
-  shippingAddress2      String?
-  shippingCity          String?
-  shippingState         String?
-  shippingPincode       String?
-  shippingContact       String?
-  courierPartner        String?
-  trackingNo            String?
-
-  // Totals & Calculations
-  totalQuantity         Int                   @default(0)
-  totalAmount           Float                 @default(0.0)
-  totalDiscount         Float                 @default(0.0)
-  amountBeforeTax       Float                 @default(0.0)
-  sgstAmount            Float                 @default(0.0)
-  cgstAmount            Float                 @default(0.0)
-  igstAmount            Float                 @default(0.0)
-  totalGst              Float                 @default(0.0)
-  amountAfterTax        Float                 @default(0.0)
-  roundOff              Float                 @default(0.0)
-  netAmount             Float                 @default(0.0)
-
-  status                String                @default("Generated")
-
-  createdAt             DateTime              @default(now())
-  updatedAt             DateTime              @updatedAt
-
-  items                 PurchaseInvoiceItem[]
+  id                String                @id @default(cuid())
+  userId            String
+  challanId         String?
+  supplierId        String?
+  invoiceType       String                @default("Tax Invoice")
+  invoiceNo         String
+  invoiceDate       DateTime              @default(now())
+  challanNo         String?
+  challanDate       DateTime?
+  partyGstn         String?
+  stateCode         String?
+  brokerName        String?
+  consigneeName     String?
+  editOn            Boolean               @default(true)
+  remarks           String?
+  ewayBillNo        String?
+  expenseOnPurchase Float                 @default(0.0)
+  hasReceipt        Boolean               @default(false)
+  billingPartyName  String
+  billingAddress    String?
+  billingCity       String?
+  billingState      String?
+  billingPincode    String?
+  billingEmail      String?
+  billingMobile     String?
+  shippingPartyName String?
+  shippingAddress   String?
+  shippingAddress2  String?
+  shippingCity      String?
+  shippingState     String?
+  shippingPincode   String?
+  shippingContact   String?
+  courierPartner    String?
+  trackingNo        String?
+  totalQuantity     Int                   @default(0)
+  totalAmount       Float                 @default(0.0)
+  totalDiscount     Float                 @default(0.0)
+  amountBeforeTax   Float                 @default(0.0)
+  sgstAmount        Float                 @default(0.0)
+  cgstAmount        Float                 @default(0.0)
+  igstAmount        Float                 @default(0.0)
+  totalGst          Float                 @default(0.0)
+  amountAfterTax    Float                 @default(0.0)
+  roundOff          Float                 @default(0.0)
+  netAmount         Float                 @default(0.0)
+  status            String                @default("Generated")
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  bankName          String?
+  chequeNo          String?
+  receiptAccount    String?
+  receiptMode       String?
+  receivedAmount    Float?                @default(0.0)
+  transactionDate   DateTime?
+  transactionType   String?
+  challan           PurchaseChallan?      @relation(fields: [challanId], references: [id])
+  supplier          Party?                @relation(fields: [supplierId], references: [id])
+  user              User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items             PurchaseInvoiceItem[]
 
   @@unique([userId, invoiceNo])
   @@index([userId])
@@ -1814,60 +1175,254 @@ model PurchaseInvoice {
   @@index([invoiceDate])
 }
 
-// ==================================================================================
-// ========================== PURCHASE INVOICE ITEM MODEL ===========================
-// ==================================================================================
-
 model PurchaseInvoiceItem {
-  id                    String          @id @default(cuid())
-  invoiceId             String
-  invoice               PurchaseInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-
-  itemNo                Int             @default(1)
-  sku                   String
-  particular            String
-  hsn                   String?
-
-  quantity              Int             @default(1)
-  rate                  Float           @default(0.0)
-  amount                Float           @default(0.0)
-
-  discountPercent       Float           @default(0.0)
-  discountAmount        Float           @default(0.0)
-  taxableAmount         Float           @default(0.0)
-
-  sgstRate              Float           @default(0.0)
-  sgstAmount            Float           @default(0.0)
-  cgstRate              Float           @default(0.0)
-  cgstAmount            Float           @default(0.0)
-  igstRate              Float           @default(0.0)
-  igstAmount            Float           @default(0.0)
-
-  total                 Float           @default(0.0)
-
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
+  id              String          @id @default(cuid())
+  invoiceId       String
+  itemNo          Int             @default(1)
+  sku             String
+  particular      String
+  hsn             String?
+  quantity        Int             @default(1)
+  rate            Float           @default(0.0)
+  amount          Float           @default(0.0)
+  discountPercent Float           @default(0.0)
+  discountAmount  Float           @default(0.0)
+  taxableAmount   Float           @default(0.0)
+  sgstRate        Float           @default(0.0)
+  sgstAmount      Float           @default(0.0)
+  cgstRate        Float           @default(0.0)
+  cgstAmount      Float           @default(0.0)
+  igstRate        Float           @default(0.0)
+  igstAmount      Float           @default(0.0)
+  total           Float           @default(0.0)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  invoice         PurchaseInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   @@index([invoiceId])
   @@index([sku])
 }
-
-// ==================================================================================
-// ============================= DropdownOption MODEL ===============================
-// ==================================================================================
 
 model DropdownOption {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   field     String
   value     String
   label     String
   createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, field, value])
   @@index([userId, field])
 }
 
+model Company {
+  id                    String   @id
+  userId                String
+  companyName           String   @default("")
+  companyCode           String   @default("")
+  ownerName             String   @default("")
+  gstNumber             String
+  panNumber             String?
+  email                 String?
+  phone                 String?
+  addressLine1          String?
+  addressLine2          String?
+  city                  String?
+  state                 String?  @default("Gujarat")
+  stateCode             String?  @default("24")
+  pincode               String?
+  logoUrl               String?
+  bankName              String?
+  accountNumber         String?
+  ifscCode              String?
+  branchName            String?
+  status                String   @default("ACTIVE")
+  isDefault             Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @default(now())
+  legalName             String?
+  brandName             String?
+  abbreviation          String?
+  businessType          String?  @default("Properiter")
+  website               String?
+  billingAddress1       String?
+  billingAddress2       String?
+  billingAddress3       String?
+  billingPincode        String?
+  billingArea           String?
+  billingCity           String?
+  billingState          String?  @default("Gujarat")
+  billingCountry        String?  @default("India")
+  billingContactName    String?
+  billingContactNo      String?
+  shippingSameAsBilling Boolean? @default(true)
+  shippingAddress1      String?
+  shippingAddress2      String?
+  shippingAddress3      String?
+  shippingPincode       String?
+  shippingArea          String?
+  shippingCity          String?
+  shippingState         String?  @default("Gujarat")
+  shippingCountry       String?  @default("India")
+  shippingContactName   String?
+  shippingContactNo     String?
+  tanNumber             String?
+  cstNumber             String?
+  fssaiNumber           String?
+  tradeCategory         String?  @default("Manufacturing")
+  msmeNumber            String?
+  accountHolderName     String?
+  accountName           String?
+  accountType           String?  @default("Current")
+  upiId                 String?
+  clientCode            String?
+  productCode           String?
+  taxInvoicePrefix      String?
+  taxInvoiceNext        String?  @default("1")
+  retailInvoicePrefix   String?
+  retailInvoiceNext     String?  @default("1")
+  considerInPnL         String?  @default("Yes")
+  signatureUrl          String?
+  completionPercentage  Int?     @default(60)
+  User                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([gstNumber])
+  @@index([status])
+  @@index([userId])
+}
 
+model Employee {
+  id                String    @id
+  userId            String
+  firstName         String
+  middleName        String?
+  lastName          String
+  fullName          String
+  employeeId        String
+  machineCode       String?
+  loginId           String?
+  email             String?
+  contactNo         String
+  aadhaarNo         String?
+  dob               DateTime?
+  bloodGroup        String?
+  branch            String?
+  department        String
+  designation       String
+  salaryType        String?   @default("Salaried")
+  joiningDate       DateTime?
+  workerProcess     String?
+  addressLine1      String?
+  addressLine2      String?
+  city              String?
+  state             String?
+  country           String?   @default("India")
+  pincode           String?
+  accountNumber     String?
+  accountHolderName String?
+  bankName          String?
+  branchName        String?
+  accountType       String?
+  ifscCode          String?
+  photoUrl          String?
+  identityDocUrl    String?
+  bankDocUrl        String?
+  isActive          Boolean   @default(true)
+  createdByName     String?
+  updatedByName     String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime
+  User              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([contactNo])
+  @@index([department])
+  @@index([employeeId])
+  @@index([userId])
+}
+
+enum Role {
+  USER
+  ADMIN
+  SUPERADMIN
+  SUPER_ADMIN
+}
+
+enum OtpPurpose {
+  EMAIL_VERIFICATION
+  FORGOT_PASSWORD
+}
+
+enum ScanStatus {
+  PENDING
+  UPLOADING
+  COMPLETED
+  FAILED
+}
+
+enum WalletTransactionType {
+  CREDIT
+  DEBIT
+}
+
+enum TagStatus {
+  AVAILABLE
+  USED
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+  DISMISSED
+}
+
+enum NotificationType {
+  TAG_LOOP
+  ORDER
+  WALLET
+  VMS
+  SYSTEM
+  INVENTORY
+}
+
+enum NotificationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TransferStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum MarketplaceConnectionStatus {
+  NOT_CONNECTED
+  CONNECTING
+  CONNECTED
+  FAILED
+}
+
+enum MarketplaceEnvironment {
+  SANDBOX
+  PRODUCTION
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  PACKED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  RETURNED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
