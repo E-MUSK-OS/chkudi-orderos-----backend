@@ -13,6 +13,8 @@ import notificationRoutes from "./notification.routes.js";
 import warehouseRoutes from "./warehouse.routes.js";
 import productRoutes from "./product.routes.js";
 import productVariantRoutes from "./productVariant.routes.js";
+import materialRoutes from "./material.routes.js";
+import materialVariantRoutes from "./materialVariant.routes.js";
 import inventoryRoutes from "./inventory.routes.js";
 import transferRoutes from "./transfer.routes.js";
 import skuMappingRoutes from "./skuMapping.routes.js";
@@ -51,6 +53,8 @@ router.use("/notifications", notificationRoutes);
 router.use("/warehouses", warehouseRoutes);
 router.use("/products", productRoutes);
 router.use("/product-variants", productVariantRoutes);
+router.use("/materials", materialRoutes);
+router.use("/material-variants", materialVariantRoutes);
 router.use("/inventories", inventoryRoutes);
 router.use("/stock-transfers", transferRoutes);
 router.use("/sku-mappings", skuMappingRoutes);
@@ -71,4 +75,3 @@ router.use("/sales-invoices", salesInvoiceRoutes);
 router.use("/purchase-invoices", purchaseInvoiceRoutes);
 
 export default router;
-

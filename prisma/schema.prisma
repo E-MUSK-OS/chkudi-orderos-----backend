@@ -62,6 +62,7 @@ model User {
   warehouses             Warehouse[]
   stockTransfers         StockTransfer[]
   products               Product[]
+  materials              Material[]
   productInventories     ProductInventory[]
   skuMappings            SkuMapping[]
   sheetDrafts            SheetDraft[]
@@ -88,6 +89,7 @@ model User {
 enum Role {
   USER
   ADMIN
+  SUPERADMIN
 }
 
 // ==================================================================================
@@ -739,6 +741,215 @@ model ProductVariantAttribute {
   @@unique([productVariantId, productAttributeId])
   @@index([productVariantId])
   @@index([productAttributeId])
+}
+
+// ==================================================================================
+// ====================================== MATERIAL MODEL =============================
+// ==================================================================================
+
+model Material {
+  id String @id @default(cuid())
+
+  // ======================================================
+  // Basic
+  // ======================================================
+
+  materialName String
+  masterSku    String
+  sku          String?
+
+  brand              String?
+  category           String
+  manufacturingGroup String?
+  subCategory        String?
+
+  description String?
+
+  unit           String?
+  sizeList       String?
+  colors         String[]
+  width          Float?   @default(0)
+  widthRangeFrom Float?   @default(0)
+  widthRangeTo   Float?   @default(0)
+  gsm            Float?   @default(0)
+  gsmRangeFrom   Float?   @default(0)
+  gsmRangeTo     Float?   @default(0)
+  ledgerGroup    String?  @default("Material Purchase")
+  less           Float?   @default(0)
+  gender         String?
+  referenceParty String?
+  marketplace    String?  @default("All")
+
+  costApplyingMode         String?
+  materialCost             Float?
+  salesRate                Float?   @default(0)
+  purchaseType             String?
+  isStockDetailsCompulsory Boolean  @default(false)
+  issueMode                String?
+  consumptionMode          String?
+  isIssuable               Boolean  @default(false)
+  isSellable               Boolean  @default(false)
+
+  dealerRate        Float?
+  retailRate        Float?
+  openingStock      Int?
+  reorderLevelStock Int?
+  minimumStock      Int?
+  materialPoints    Float?
+  isPaired          Boolean @default(false)
+  availability      String?
+
+  asin            String?
+  rackAddress     String?
+  generateBarcode String? @default("No")
+  mrp             String?
+  mfgMonth        String?
+  hsnCode         String?
+  gstRate         Float?
+  imageUrl        String?
+
+  imgfileurl      String?
+
+  // ======================================================
+  // Status
+  // ======================================================
+
+  isActive Boolean @default(true)
+
+  // ======================================================
+  // Relations
+  // ======================================================
+
+  userId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  attributes MaterialAttribute[]
+
+  variants MaterialVariant[]
+
+  // ======================================================
+  // System
+  // ======================================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, masterSku])
+  @@unique([userId, materialName])
+  @@index([userId])
+  @@index([category])
+  @@index([brand])
+  @@index([asin])
+}
+
+model MaterialAttribute {
+  id String @id @default(cuid())
+
+  // ======================================================
+  // Attribute
+  // ======================================================
+
+  attributeName String
+
+  // ======================================================
+  // Relation
+  // ======================================================
+
+  materialId String
+
+  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  variantAttributes MaterialVariantAttribute[]
+
+  // ======================================================
+  // System
+  // ======================================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([materialId, attributeName])
+  @@index([materialId])
+}
+
+// ==================================================================================
+// =============================== MATERIAL VARIANT MODEL ============================
+// ==================================================================================
+
+model MaterialVariant {
+  id String @id @default(cuid())
+
+  // ======================================================
+  // Variant
+  // ======================================================
+
+  variantSku      String
+  asin            String?
+  rackAddress     String?
+  generateBarcode String? @default("No")
+  imageUrl        String?
+
+  imgfileurl      String?
+
+  isActive Boolean @default(true)
+
+  // ======================================================
+  // Relation
+  // ======================================================
+
+  materialId String
+
+  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  attributes MaterialVariantAttribute[]
+
+  // ======================================================
+  // System
+  // ======================================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([materialId, variantSku])
+  @@index([materialId])
+}
+
+// ==================================================================================
+// ========================= MATERIAL VARIANT ATTRIBUTE MODEL ========================
+// ==================================================================================
+
+model MaterialVariantAttribute {
+  id String @id @default(cuid())
+
+  // ======================================================
+  // Value
+  // ======================================================
+
+  attributeValue String
+
+  // ======================================================
+  // Relations
+  // ======================================================
+
+  materialVariantId String
+
+  materialVariant MaterialVariant @relation(fields: [materialVariantId], references: [id], onDelete: Cascade)
+
+  materialAttributeId String
+
+  materialAttribute MaterialAttribute @relation(fields: [materialAttributeId], references: [id], onDelete: Cascade)
+
+  // ======================================================
+  // System
+  // ======================================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([materialVariantId, materialAttributeId])
+  @@index([materialVariantId])
+  @@index([materialAttributeId])
 }
 
 model ProductInventory {
