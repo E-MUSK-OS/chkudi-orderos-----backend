@@ -51,9 +51,7 @@ model User {
   superAdminMappings        AdminUserMapping[]        @relation("SuperAdminManagedUsers")
   userMapping               AdminUserMapping?         @relation("UserManagedByAdmin")
   asinImports               AsinImport[]
-  Company                   Company[]
   dropdownOptions           DropdownOption[]
-  Employee                  Employee[]
   labelTemplates            LabelTemplate[]
   marketplaceAccounts       MarketplaceAccount[]
   notifications             Notification[]
@@ -61,6 +59,7 @@ model User {
   orders                    Order[]
   parties                   Party[]
   products                  Product[]
+  materials                 Material[]
   productInventories        ProductInventory[]
   purchaseChallans          PurchaseChallan[]
   purchaseInvoices          PurchaseInvoice[]
@@ -83,6 +82,8 @@ model User {
   amazonOrders              AmazonOrder[]
   amazonProcessBatches      AmazonProcessBatch[]
   myntraImports             MyntraImport[]
+  companyEntities Company[] @relation("UserCompanyEntities")
+  employees Employee[]
 
   @@index([createdById])
   @@index([ownerId])
@@ -455,6 +456,215 @@ model ProductVariantAttribute {
   @@unique([productVariantId, productAttributeId])
   @@index([productVariantId])
   @@index([productAttributeId])
+}
+
+// ==================================================================================
+// ====================================== MATERIAL MODEL =============================
+// ==================================================================================
+
+model Material {
+  id String @id @default(cuid())
+
+  // ======================================================
+  // Basic
+  // ======================================================
+
+  materialName String
+  masterSku    String
+  sku          String?
+
+  brand              String?
+  category           String
+  manufacturingGroup String?
+  subCategory        String?
+
+  description String?
+
+  unit           String?
+  sizeList       String?
+  colors         String[]
+  width          Float?   @default(0)
+  widthRangeFrom Float?   @default(0)
+  widthRangeTo   Float?   @default(0)
+  gsm            Float?   @default(0)
+  gsmRangeFrom   Float?   @default(0)
+  gsmRangeTo     Float?   @default(0)
+  ledgerGroup    String?  @default("Material Purchase")
+  less           Float?   @default(0)
+  gender         String?
+  referenceParty String?
+  marketplace    String?  @default("All")
+
+  costApplyingMode         String?
+  materialCost             Float?
+  salesRate                Float?   @default(0)
+  purchaseType             String?
+  isStockDetailsCompulsory Boolean  @default(false)
+  issueMode                String?
+  consumptionMode          String?
+  isIssuable               Boolean  @default(false)
+  isSellable               Boolean  @default(false)
+
+  dealerRate        Float?
+  retailRate        Float?
+  openingStock      Int?
+  reorderLevelStock Int?
+  minimumStock      Int?
+  materialPoints    Float?
+  isPaired          Boolean @default(false)
+  availability      String?
+
+  asin            String?
+  rackAddress     String?
+  generateBarcode String? @default("No")
+  mrp             String?
+  mfgMonth        String?
+  hsnCode         String?
+  gstRate         Float?
+  imageUrl        String?
+
+  imgfileurl      String?
+
+  // ======================================================
+  // Status
+  // ======================================================
+
+  isActive Boolean @default(true)
+
+  // ======================================================
+  // Relations
+  // ======================================================
+
+  userId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  attributes MaterialAttribute[]
+
+  variants MaterialVariant[]
+
+  // ======================================================
+  // System
+  // ======================================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, masterSku])
+  @@unique([userId, materialName])
+  @@index([userId])
+  @@index([category])
+  @@index([brand])
+  @@index([asin])
+}
+
+model MaterialAttribute {
+  id String @id @default(cuid())
+
+  // ======================================================
+  // Attribute
+  // ======================================================
+
+  attributeName String
+
+  // ======================================================
+  // Relation
+  // ======================================================
+
+  materialId String
+
+  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  variantAttributes MaterialVariantAttribute[]
+
+  // ======================================================
+  // System
+  // ======================================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([materialId, attributeName])
+  @@index([materialId])
+}
+
+// ==================================================================================
+// =============================== MATERIAL VARIANT MODEL ============================
+// ==================================================================================
+
+model MaterialVariant {
+  id String @id @default(cuid())
+
+  // ======================================================
+  // Variant
+  // ======================================================
+
+  variantSku      String
+  asin            String?
+  rackAddress     String?
+  generateBarcode String? @default("No")
+  imageUrl        String?
+
+  imgfileurl      String?
+
+  isActive Boolean @default(true)
+
+  // ======================================================
+  // Relation
+  // ======================================================
+
+  materialId String
+
+  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  attributes MaterialVariantAttribute[]
+
+  // ======================================================
+  // System
+  // ======================================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([materialId, variantSku])
+  @@index([materialId])
+}
+
+// ==================================================================================
+// ========================= MATERIAL VARIANT ATTRIBUTE MODEL ========================
+// ==================================================================================
+
+model MaterialVariantAttribute {
+  id String @id @default(cuid())
+
+  // ======================================================
+  // Value
+  // ======================================================
+
+  attributeValue String
+
+  // ======================================================
+  // Relations
+  // ======================================================
+
+  materialVariantId String
+
+  materialVariant MaterialVariant @relation(fields: [materialVariantId], references: [id], onDelete: Cascade)
+
+  materialAttributeId String
+
+  materialAttribute MaterialAttribute @relation(fields: [materialAttributeId], references: [id], onDelete: Cascade)
+
+  // ======================================================
+  // System
+  // ======================================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([materialVariantId, materialAttributeId])
+  @@index([materialVariantId])
+  @@index([materialAttributeId])
 }
 
 model ProductInventory {
@@ -853,22 +1063,23 @@ model Party {
   shippingPincode       String?
   shippingSameAsBilling Boolean           @default(true)
   shippingState         String?
-  legalName             String?
-  msmeNumber            String?
+
   accountHolderName     String?
   branchName            String?
-  accountType           String?           @default("Current")
-  creditDebitLimit      Float?            @default(0)
+  accountType           String?        @default("Current")
+  legalName             String?
+  msmeNumber            String?
+  creditDebitLimit      Float          @default(0)
   refContactName        String?
   logoUrl               String?
-  completionPercentage  Int?              @default(0)
+  completionPercentage  Int?           @default(0)
   createdByName         String?
   updatedByName         String?
-  user                  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  purchaseChallans      PurchaseChallan[]
-  purchaseInvoices      PurchaseInvoice[]
+  user                  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   challans              SalesChallan[]
+  purchaseChallans      PurchaseChallan[]
   salesInvoices         SalesInvoice[]
+  purchaseInvoices      PurchaseInvoice[]
 
   @@unique([userId, partyName])
   @@index([userId])
@@ -1249,85 +1460,113 @@ model DropdownOption {
   @@index([userId, field])
 }
 
+
+// ================================ COMPANY MODEL ===================================
+// ==================================================================================
+
 model Company {
-  id                    String   @id
+  id                    String        @id @default(cuid())
   userId                String
-  companyName           String   @default("")
-  companyCode           String   @default("")
-  ownerName             String   @default("")
+  user                  User          @relation("UserCompanyEntities", fields: [userId], references: [id], onDelete: Cascade)
+
+  companyName           String        @default("")
+  companyCode           String        @default("")
+  ownerName             String        @default("")
   gstNumber             String
   panNumber             String?
   email                 String?
   phone                 String?
-  addressLine1          String?
-  addressLine2          String?
-  city                  String?
-  state                 String?  @default("Gujarat")
-  stateCode             String?  @default("24")
-  pincode               String?
-  logoUrl               String?
-  bankName              String?
-  accountNumber         String?
-  ifscCode              String?
-  branchName            String?
-  status                String   @default("ACTIVE")
-  isDefault             Boolean  @default(false)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @default(now())
+
+  // General Details
   legalName             String?
   brandName             String?
   abbreviation          String?
-  businessType          String?  @default("Properiter")
+  businessType          String?       @default("Properiter")
   website               String?
+
+  // Address Details (legacy / shorthand)
+  addressLine1          String?
+  addressLine2          String?
+  city                  String?
+  state                 String?       @default("Gujarat")
+  stateCode             String?       @default("24")
+  pincode               String?
+
+  // Contact Details - Billing
   billingAddress1       String?
   billingAddress2       String?
   billingAddress3       String?
   billingPincode        String?
   billingArea           String?
   billingCity           String?
-  billingState          String?  @default("Gujarat")
-  billingCountry        String?  @default("India")
+  billingState          String?       @default("Gujarat")
+  billingCountry        String?       @default("India")
   billingContactName    String?
   billingContactNo      String?
-  shippingSameAsBilling Boolean? @default(true)
+
+  // Contact Details - Shipping
+  shippingSameAsBilling Boolean       @default(true)
   shippingAddress1      String?
   shippingAddress2      String?
   shippingAddress3      String?
   shippingPincode       String?
   shippingArea          String?
   shippingCity          String?
-  shippingState         String?  @default("Gujarat")
-  shippingCountry       String?  @default("India")
+  shippingState         String?       @default("Gujarat")
+  shippingCountry       String?       @default("India")
   shippingContactName   String?
   shippingContactNo     String?
+
+  // Accounting Details - Legal
   tanNumber             String?
   cstNumber             String?
   fssaiNumber           String?
-  tradeCategory         String?  @default("Manufacturing")
+  tradeCategory         String?       @default("Manufacturing")
   msmeNumber            String?
+
+  // Bank Info
+  bankName              String?
   accountHolderName     String?
   accountName           String?
-  accountType           String?  @default("Current")
+  accountNumber         String?
+  ifscCode              String?
+  accountType           String?       @default("Current")
+  branchName            String?
   upiId                 String?
   clientCode            String?
   productCode           String?
-  taxInvoicePrefix      String?
-  taxInvoiceNext        String?  @default("1")
-  retailInvoicePrefix   String?
-  retailInvoiceNext     String?  @default("1")
-  considerInPnL         String?  @default("Yes")
-  signatureUrl          String?
-  completionPercentage  Int?     @default(60)
-  User                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Invoice & Other Details
+  taxInvoicePrefix      String?
+  taxInvoiceNext        String?       @default("1")
+  retailInvoicePrefix   String?
+  retailInvoiceNext     String?       @default("1")
+  considerInPnL         String?       @default("Yes")
+
+  // Logo & Signature
+  logoUrl               String?
+  signatureUrl          String?
+  completionPercentage  Int?          @default(60)
+
+  status                String        @default("ACTIVE") // ACTIVE, DRAFT, INACTIVE
+  isDefault             Boolean       @default(false)
+
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  @@index([userId])
   @@index([gstNumber])
   @@index([status])
-  @@index([userId])
 }
 
+// ==================================================================================
+// ================================ EMPLOYEE MODEL ==================================
+// ==================================================================================
+
 model Employee {
-  id                String    @id
+  id                String    @id @default(cuid())
   userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   firstName         String
   middleName        String?
   lastName          String
@@ -1338,6 +1577,10 @@ model Employee {
   email             String?
   contactNo         String
   aadhaarNo         String?
+
+
+  // Personal & Organization
+
   dob               DateTime?
   bloodGroup        String?
   branch            String?
@@ -1346,39 +1589,89 @@ model Employee {
   salaryType        String?   @default("Salaried")
   joiningDate       DateTime?
   workerProcess     String?
+
+
+  // Contact Details & Address
+
   addressLine1      String?
   addressLine2      String?
   city              String?
   state             String?
   country           String?   @default("India")
   pincode           String?
+
+
+  // Bank Details
+
   accountNumber     String?
   accountHolderName String?
   bankName          String?
   branchName        String?
   accountType       String?
   ifscCode          String?
+  // Media / Documents URLs
   photoUrl          String?
   identityDocUrl    String?
   bankDocUrl        String?
+  documents         Json?     @default("[]")
   isActive          Boolean   @default(true)
   createdByName     String?
   updatedByName     String?
   createdAt         DateTime  @default(now())
-  updatedAt         DateTime
-  User              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  updatedAt         DateTime  @updatedAt
 
+  // Salary & Working Details
+  basicSalary           Float     @default(0.0)
+  workingDayMode        String?   @default("Monthly")
+  workingDays           Int?      @default(31)
+  workingHoursPerDay    Float?    @default(8.0)
+  totalHours            Float?    @default(248.0)
+  wageRate              Float?    @default(0.0)
+  otRatePercent         Float?    @default(0.0)
+  otRatePerHour         Float?    @default(0.0)
+  transportAllowance    Float?    @default(0.0)
+  medicalAllowance      Float?    @default(0.0)
+
+  // Relations
+  absentRecords         EmployeeAbsentRecord[]
+
+  @@index([userId])
+  @@index([employeeId])
   @@index([contactNo])
   @@index([department])
+}
+
+// ==================================================================================
+// ========================= EMPLOYEE ABSENT RECORD MODEL ===========================
+// ==================================================================================
+
+model EmployeeAbsentRecord {
+  id              String    @id @default(cuid())
+  employeeId      String
+  employee        Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  financialYear   String    @default("2026-2027")
+  monthName       String    // e.g. "April 2026", "May 2026"
+  monthIndex      Int       @default(0) // 0 for April ... 11 for March
+
+  periodStartDate DateTime?
+  periodEndDate   DateTime?
+  periodString    String?   // e.g. "01-04-2026 - 15-04-2026"
+
+  absentHours     Float     @default(0.0)
+  overtimeHours   Float     @default(0.0)
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
   @@index([employeeId])
-  @@index([userId])
+  @@index([financialYear])
 }
 
 enum Role {
   USER
   ADMIN
   SUPERADMIN
-  SUPER_ADMIN
 }
 
 enum OtpPurpose {

@@ -58,10 +58,11 @@ app.use(express.urlencoded({ extended: true, limit: "500mb" }));
 
 import path from "path";
 import { getAmazonBatchRootDir } from "./utils/amazonBatchNasPath.js";
-import { getUserProfileImageRootDir } from "./utils/userProfileNasPath.js";
+
 
 // Serve Amazon batches directly from configured NAS storage
 app.use("/uploads/amazon-batches", express.static(getAmazonBatchRootDir()));
+app.use("/uploads/company-media", express.static(getCompanyMediaRootDir()));
 
 // Serve User profile images directly from configured NAS storage
 app.use("/uploads/user-profile-image", express.static(getUserProfileImageRootDir()));

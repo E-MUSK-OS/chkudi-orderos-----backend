@@ -13,6 +13,8 @@ import notificationRoutes from "./notification.routes.js";
 import warehouseRoutes from "./warehouse.routes.js";
 import productRoutes from "./product.routes.js";
 import productVariantRoutes from "./productVariant.routes.js";
+import materialRoutes from "./material.routes.js";
+import materialVariantRoutes from "./materialVariant.routes.js";
 import inventoryRoutes from "./inventory.routes.js";
 import transferRoutes from "./transfer.routes.js";
 import skuMappingRoutes from "./skuMapping.routes.js";
@@ -31,7 +33,7 @@ import purchaseChallanRoutes from "./purchaseChallan.routes.js";
 import webstoreRoutes from "./webstore.routes.js";
 import salesInvoiceRoutes from "./salesInvoice.routes.js";
 import purchaseInvoiceRoutes from "./purchaseInvoice.routes.js";
-import userManagementRoutes from "./userManagement.routes.js";
+
 
 const router = Router();
 
@@ -52,6 +54,8 @@ router.use("/notifications", notificationRoutes);
 router.use("/warehouses", warehouseRoutes);
 router.use("/products", productRoutes);
 router.use("/product-variants", productVariantRoutes);
+router.use("/materials", materialRoutes);
+router.use("/material-variants", materialVariantRoutes);
 router.use("/inventories", inventoryRoutes);
 router.use("/stock-transfers", transferRoutes);
 router.use("/sku-mappings", skuMappingRoutes);
@@ -65,11 +69,12 @@ router.use("/amazon-orders/batch-chunks", amazonBatchChunkRoutes);
 router.use("/amazon-orders", amazonOrderRoutes);
 router.use("/amazon-analytics", amazonAnalyticsRoutes);
 router.use("/parties", partyRoutes);
+router.use("/ledger-book", partyRoutes);
 router.use("/sales-challans", salesChallanRoutes);
 router.use("/purchase-challans", purchaseChallanRoutes);
 router.use("/webstores", webstoreRoutes);
 router.use("/sales-invoices", salesInvoiceRoutes);
 router.use("/purchase-invoices", purchaseInvoiceRoutes);
-router.use("/manage-users", userManagementRoutes);
+
 
 export default router;
