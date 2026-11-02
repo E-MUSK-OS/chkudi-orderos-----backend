@@ -135,11 +135,11 @@ export const findManagedUsers = async ({
   if (requestingUser.role === "SUPERADMIN") {
     where.OR = [
       { id: actorId },
+      { createdById: actorId },
       { userMapping: { superAdminId: actorId } },
       { userMapping: { adminId: actorId } },
       { userMapping: { admin: { createdById: actorId } } },
       { userMapping: { admin: { userMapping: { superAdminId: actorId } } } },
-      { AND: [{ createdById: actorId }, { userMapping: { isNot: null } }] },
     ];
   } else if (requestingUser.role === "ADMIN") {
     const targetSaId = workspaceSuperAdminId || actorId;
@@ -151,8 +151,8 @@ export const findManagedUsers = async ({
       { userMapping: { adminId: actorId } },
       { userMapping: { admin: { createdById: targetSaId } } },
       { userMapping: { admin: { userMapping: { superAdminId: targetSaId } } } },
-      { AND: [{ createdById: targetSaId }, { userMapping: { isNot: null } }] },
-      { AND: [{ createdById: actorId }, { userMapping: { isNot: null } }] },
+      { createdById: targetSaId },
+      { createdById: actorId },
     ];
   }
 

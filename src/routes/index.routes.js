@@ -33,6 +33,10 @@ import purchaseChallanRoutes from "./purchaseChallan.routes.js";
 import webstoreRoutes from "./webstore.routes.js";
 import salesInvoiceRoutes from "./salesInvoice.routes.js";
 import purchaseInvoiceRoutes from "./purchaseInvoice.routes.js";
+import userManagementRoutes from "./userManagement.routes.js";
+import companyRoutes from "./company.routes.js";
+import employeeRoutes from "./employee.routes.js";
+import salariedEmployeeRoutes from "./salariedEmployee.routes.js";
 
 
 const router = Router();
@@ -75,6 +79,10 @@ router.use("/purchase-challans", purchaseChallanRoutes);
 router.use("/webstores", webstoreRoutes);
 router.use("/sales-invoices", salesInvoiceRoutes);
 router.use("/purchase-invoices", purchaseInvoiceRoutes);
+router.use("/manage-users", userManagementRoutes);
+router.use("/companies", companyRoutes);
+router.use("/employees", employeeRoutes);
+router.use("/salaried-employees", salariedEmployeeRoutes);
 
 
 export default router;
