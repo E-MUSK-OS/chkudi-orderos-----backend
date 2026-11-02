@@ -388,14 +388,31 @@ export const autoPersistMaterialOptions = async (userId, data) => {
       "purchaseType",
     ];
 
+    const ignoredValues = new Set([
+      "no category",
+      "no sub category",
+      "no manufacturing group",
+      "no unit",
+      "no brand",
+      "no for use",
+      "no cost applying mode",
+      "no purchase type",
+      "no issue mode",
+      "no consumption mode",
+    ]);
+
     for (const field of fieldsToPersist) {
       const val = data[field];
-      if (val && typeof val === "string" && val.trim() && val.trim() !== "No Brand") {
-        await upsertDropdownOption(userId, {
-          field,
-          value: val.trim(),
-          label: val.trim(),
-        });
+      if (val && typeof val === "string") {
+        const trimmed = val.trim();
+        const lower = trimmed.toLowerCase();
+        if (trimmed && !ignoredValues.has(lower) && !lower.startsWith("no ")) {
+          await upsertDropdownOption(userId, {
+            field: field.toLowerCase(),
+            value: trimmed,
+            label: trimmed,
+          });
+        }
       }
     }
   } catch (err) {
@@ -415,6 +432,11 @@ export const getDropdownOptionsService = async (userId) => {
         forUse: true,
         brand: true,
         unit: true,
+        manufacturingGroup: true,
+        costApplyingMode: true,
+        purchaseType: true,
+        issueMode: true,
+        consumptionMode: true,
         gender: true,
         referenceParty: true,
         rackAddress: true,
@@ -446,20 +468,55 @@ export const getDropdownOptionsService = async (userId) => {
 
   const materialColors = existingMaterials.flatMap((p) => p.colors || []).filter(Boolean);
 
+  const cleanValues = (arr, ignoredList = []) => {
+    const ignoredSet = new Set(ignoredList.map((s) => s.toLowerCase()));
+    return [
+      ...new Set(
+        arr
+          .filter(
+            (v) =>
+              v &&
+              typeof v === "string" &&
+              v.trim() &&
+              !ignoredSet.has(v.trim().toLowerCase()) &&
+              !v.trim().toLowerCase().startsWith("no ")
+          )
+          .map((v) => v.trim())
+      ),
+    ];
+  };
+
+  const distinctMaterials = {
+    categories: cleanValues(existingMaterials.map((p) => p.category), ["no category"]),
+    subCategories: cleanValues(existingMaterials.map((p) => p.subCategory), ["no sub category"]),
+    forUses: cleanValues(existingMaterials.map((p) => p.forUse), ["no for use"]),
+    manufacturingGroups: cleanValues(existingMaterials.map((p) => p.manufacturingGroup), ["no manufacturing group"]),
+    brands: cleanValues(existingMaterials.map((p) => p.brand), ["no brand"]),
+    units: cleanValues(existingMaterials.map((p) => p.unit), ["no unit"]),
+    costApplyingModes: cleanValues(existingMaterials.map((p) => p.costApplyingMode), ["no cost applying mode"]),
+    purchaseTypes: cleanValues(existingMaterials.map((p) => p.purchaseType), ["no purchase type"]),
+    issueModes: cleanValues(existingMaterials.map((p) => p.issueMode), ["no issue mode"]),
+    consumptionModes: cleanValues(existingMaterials.map((p) => p.consumptionMode), ["no consumption mode"]),
+    genders: cleanValues(existingMaterials.map((p) => p.gender)),
+    referenceParties: cleanValues(existingMaterials.map((p) => p.referenceParty)),
+    rackAddresses: cleanValues(existingMaterials.map((p) => p.rackAddress)),
+    availabilities: cleanValues(existingMaterials.map((p) => p.availability)),
+    colors: cleanValues([...materialColors, ...variantColors]),
+    gstRates: [...new Set(existingMaterials.map((p) => p.gstRate).filter((g) => g !== null && g !== undefined))],
+  };
+
   return {
-    savedOptions: userSaved,
+    savedOptions: userSaved.filter(
+      (o) =>
+        o.value &&
+        !o.value.toLowerCase().startsWith("no ") &&
+        !["no category", "no sub category", "no manufacturing group", "no unit", "no brand", "no for use"].includes(
+          o.value.toLowerCase()
+        )
+    ),
     parties: parties.map((p) => p.partyName).filter(Boolean),
-    distinctFromProducts: {
-      categories: [...new Set(existingMaterials.map((p) => p.category).filter(Boolean))],
-      brands: [...new Set(existingMaterials.map((p) => p.brand).filter(Boolean))],
-      units: [...new Set(existingMaterials.map((p) => p.unit).filter(Boolean))],
-      genders: [...new Set(existingMaterials.map((p) => p.gender).filter(Boolean))],
-      referenceParties: [...new Set(existingMaterials.map((p) => p.referenceParty).filter(Boolean))],
-      rackAddresses: [...new Set(existingMaterials.map((p) => p.rackAddress).filter(Boolean))],
-      availabilities: [...new Set(existingMaterials.map((p) => p.availability).filter(Boolean))],
-      colors: [...new Set([...materialColors, ...variantColors])],
-      gstRates: [...new Set(existingMaterials.map((p) => p.gstRate).filter((g) => g !== null && g !== undefined))],
-    },
+    distinctFromProducts: distinctMaterials,
+    distinctFromMaterials: distinctMaterials,
   };
 };
 
