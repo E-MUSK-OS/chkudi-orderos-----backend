@@ -43,7 +43,15 @@ export const createMaterialSchema = z.object({
     .string()
     .trim()
     .max(100, "Sub category cannot exceed 100 characters.")
-    .optional(),
+    .optional()
+    .nullable(),
+
+  forUse: z
+    .string()
+    .trim()
+    .max(100, "For Use cannot exceed 100 characters.")
+    .optional()
+    .nullable(),
 
   description: z
     .string()
@@ -114,6 +122,7 @@ export const createMaterialSchema = z.object({
   gsmRangeFrom: z.number().optional().nullable().default(0),
   gsmRangeTo: z.number().optional().nullable().default(0),
   ledgerGroup: z.string().trim().max(100).optional().nullable().default("Material Purchase"),
+  less: z.number().optional().nullable().default(0),
   marketplace: z
     .array(z.string().trim())
     .or(z.string().transform((val) => (val ? val.split(",").map((s) => s.trim()).filter(Boolean) : ["All"])))

@@ -236,6 +236,8 @@ export const importMaterialsFromExcelService = async (userId, fileBuffer) => {
     const masterSku = String(row["mastersku"] || row["sku"] || "").trim();
     const materialName = String(row["materialname"] || row["name"] || "").trim();
     const category = String(row["category"] || "").trim();
+    const subCategory = String(row["subcategory"] || row["sub_category"] || "").trim();
+    const forUse = String(row["foruse"] || row["for_use"] || row["for"] || "").trim();
     const manufacturingGroup = String(row["manufacturinggroup"] || row["mfggroup"] || "").trim();
     const unit = String(row["unit"] || "Meters").trim();
     const hsnCode = String(row["hsncode"] || row["hsn"] || "").trim();
@@ -307,6 +309,8 @@ export const importMaterialsFromExcelService = async (userId, fileBuffer) => {
       masterSku,
       materialName,
       category,
+      subCategory: subCategory || null,
+      forUse: forUse || null,
       manufacturingGroup,
       unit,
       colors,
@@ -373,6 +377,8 @@ export const autoPersistMaterialOptions = async (userId, data) => {
   try {
     const fieldsToPersist = [
       "category",
+      "subCategory",
+      "forUse",
       "brand",
       "unit",
       "manufacturingGroup",
@@ -382,14 +388,31 @@ export const autoPersistMaterialOptions = async (userId, data) => {
       "purchaseType",
     ];
 
+    const ignoredValues = new Set([
+      "no category",
+      "no sub category",
+      "no manufacturing group",
+      "no unit",
+      "no brand",
+      "no for use",
+      "no cost applying mode",
+      "no purchase type",
+      "no issue mode",
+      "no consumption mode",
+    ]);
+
     for (const field of fieldsToPersist) {
       const val = data[field];
-      if (val && typeof val === "string" && val.trim() && val.trim() !== "No Brand") {
-        await upsertDropdownOption(userId, {
-          field,
-          value: val.trim(),
-          label: val.trim(),
-        });
+      if (val && typeof val === "string") {
+        const trimmed = val.trim();
+        const lower = trimmed.toLowerCase();
+        if (trimmed && !ignoredValues.has(lower) && !lower.startsWith("no ")) {
+          await upsertDropdownOption(userId, {
+            field: field.toLowerCase(),
+            value: trimmed,
+            label: trimmed,
+          });
+        }
       }
     }
   } catch (err) {
@@ -405,14 +428,19 @@ export const getDropdownOptionsService = async (userId) => {
       where: { userId },
       select: {
         category: true,
-        manufacturingGroup: true,
         subCategory: true,
+        forUse: true,
         brand: true,
         unit: true,
+        manufacturingGroup: true,
         costApplyingMode: true,
         purchaseType: true,
         issueMode: true,
         consumptionMode: true,
+        gender: true,
+        referenceParty: true,
+        rackAddress: true,
+        availability: true,
         colors: true,
         gstRate: true,
       },
@@ -450,27 +478,66 @@ export const getDropdownOptionsService = async (userId) => {
     }
   });
 
-  const isNotDisabled = (field, val) => {
-    if (val === null || val === undefined) return false;
+  const cleanValues = (field, arr, ignoredList = []) => {
+    const ignoredSet = new Set(ignoredList.map((s) => s.toLowerCase()));
     const disabledSet = disabledMap.get(field.toLowerCase());
-    return !disabledSet || !disabledSet.has(String(val).trim().toLowerCase());
+    return [
+      ...new Set(
+        arr
+          .filter(
+            (v) =>
+              v &&
+              typeof v === "string" &&
+              v.trim() &&
+              !ignoredSet.has(v.trim().toLowerCase()) &&
+              !v.trim().toLowerCase().startsWith("no ") &&
+              (!disabledSet || !disabledSet.has(v.trim().toLowerCase()))
+          )
+          .map((v) => v.trim())
+      ),
+    ];
+  };
+
+  const disabledGst = disabledMap.get("gstrate") || disabledMap.get("gst");
+  const distinctMaterials = {
+    categories: cleanValues("category", existingMaterials.map((p) => p.category), ["no category"]),
+    subCategories: cleanValues("subcategory", existingMaterials.map((p) => p.subCategory), ["no sub category"]),
+    forUses: cleanValues("foruse", existingMaterials.map((p) => p.forUse), ["no for use"]),
+    manufacturingGroups: cleanValues("manufacturinggroup", existingMaterials.map((p) => p.manufacturingGroup), ["no manufacturing group"]),
+    brands: cleanValues("brand", existingMaterials.map((p) => p.brand), ["no brand"]),
+    units: cleanValues("unit", existingMaterials.map((p) => p.unit), ["no unit"]),
+    costApplyingModes: cleanValues("costapplyingmode", existingMaterials.map((p) => p.costApplyingMode), ["no cost applying mode"]),
+    purchaseTypes: cleanValues("purchasetype", existingMaterials.map((p) => p.purchaseType), ["no purchase type"]),
+    issueModes: cleanValues("issuemode", existingMaterials.map((p) => p.issueMode), ["no issue mode"]),
+    consumptionModes: cleanValues("consumptionmode", existingMaterials.map((p) => p.consumptionMode), ["no consumption mode"]),
+    genders: cleanValues("gender", existingMaterials.map((p) => p.gender)),
+    referenceParties: cleanValues("referenceparty", existingMaterials.map((p) => p.referenceParty)),
+    rackAddresses: cleanValues("rackaddress", existingMaterials.map((p) => p.rackAddress)),
+    availabilities: cleanValues("availability", existingMaterials.map((p) => p.availability)),
+    colors: cleanValues("color", [...materialColors, ...variantColors]),
+    gstRates: [
+      ...new Set(
+        existingMaterials
+          .map((p) => p.gstRate)
+          .filter((g) => g !== null && g !== undefined && (!disabledGst || !disabledGst.has(String(g).trim().toLowerCase())))
+      ),
+    ],
   };
 
   return {
-    savedOptions: userSaved,
-    parties: parties.map((p) => p.partyName).filter((p) => Boolean(p) && isNotDisabled("referenceparty", p)),
-    distinctFromProducts: {
-      categories: [...new Set(existingMaterials.map((p) => p.category).filter((c) => Boolean(c) && isNotDisabled("category", c)))],
-      manufacturingGroups: [...new Set(existingMaterials.map((p) => p.manufacturingGroup).filter((m) => Boolean(m) && isNotDisabled("manufacturinggroup", m)))],
-      brands: [...new Set(existingMaterials.map((p) => p.brand).filter((b) => Boolean(b) && isNotDisabled("brand", b)))],
-      units: [...new Set(existingMaterials.map((p) => p.unit).filter((u) => Boolean(u) && isNotDisabled("unit", u)))],
-      costApplyingModes: [...new Set(existingMaterials.map((p) => p.costApplyingMode).filter((c) => Boolean(c) && isNotDisabled("costapplyingmode", c)))],
-      purchaseTypes: [...new Set(existingMaterials.map((p) => p.purchaseType).filter((pt) => Boolean(pt) && isNotDisabled("purchasetype", pt)))],
-      issueModes: [...new Set(existingMaterials.map((p) => p.issueMode).filter((im) => Boolean(im) && isNotDisabled("issuemode", im)))],
-      consumptionModes: [...new Set(existingMaterials.map((p) => p.consumptionMode).filter((cm) => Boolean(cm) && isNotDisabled("consumptionmode", cm)))],
-      colors: [...new Set([...materialColors, ...variantColors].filter((c) => Boolean(c) && isNotDisabled("color", c)))],
-      gstRates: [...new Set(existingMaterials.map((p) => p.gstRate).filter((g) => g !== null && g !== undefined && isNotDisabled("gstrate", g)))],
-    },
+    savedOptions: userSaved.filter(
+      (o) =>
+        o.value &&
+        !o.value.toLowerCase().startsWith("no ") &&
+        !["no category", "no sub category", "no manufacturing group", "no unit", "no brand", "no for use"].includes(
+          o.value.toLowerCase()
+        )
+    ),
+    parties: parties
+      .map((p) => p.partyName)
+      .filter((p) => Boolean(p) && (!disabledMap.get("referenceparty") || !disabledMap.get("referenceparty").has(p.trim().toLowerCase()))),
+    distinctFromProducts: distinctMaterials,
+    distinctFromMaterials: distinctMaterials,
   };
 };
 
