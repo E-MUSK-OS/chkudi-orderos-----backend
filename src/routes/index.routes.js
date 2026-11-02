@@ -37,6 +37,8 @@ import userManagementRoutes from "./userManagement.routes.js";
 import companyRoutes from "./company.routes.js";
 import employeeRoutes from "./employee.routes.js";
 import salariedEmployeeRoutes from "./salariedEmployee.routes.js";
+import clientConfigurationRoutes from "./clientConfiguration.routes.js";
+import settingMastersRoutes from "./settingMasters.routes.js";
 
 
 const router = Router();
@@ -83,6 +85,8 @@ router.use("/manage-users", userManagementRoutes);
 router.use("/companies", companyRoutes);
 router.use("/employees", employeeRoutes);
 router.use("/salaried-employees", salariedEmployeeRoutes);
+router.use("/client-configuration", clientConfigurationRoutes);
+router.use("/setting-masters", settingMastersRoutes);
 
 
 export default router;

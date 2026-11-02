@@ -969,19 +969,35 @@ export const getDropdownOptionsService = async (userId) => {
 
   const productColors = existingProducts.flatMap((p) => p.colors || []).filter(Boolean);
 
+  // Build disabled lookup set to ensure deactivated options never leak through distinct lists
+  const disabledMap = new Map();
+  (userSaved || []).forEach((o) => {
+    if (o.isActive === false) {
+      const f = o.field.toLowerCase();
+      if (!disabledMap.has(f)) disabledMap.set(f, new Set());
+      disabledMap.get(f).add(o.value.trim().toLowerCase());
+    }
+  });
+
+  const isNotDisabled = (field, val) => {
+    if (val === null || val === undefined) return false;
+    const disabledSet = disabledMap.get(field.toLowerCase());
+    return !disabledSet || !disabledSet.has(String(val).trim().toLowerCase());
+  };
+
   return {
     savedOptions: userSaved,
-    parties: parties.map((p) => p.partyName).filter(Boolean),
+    parties: parties.map((p) => p.partyName).filter((p) => Boolean(p) && isNotDisabled("referenceparty", p)),
     distinctFromProducts: {
-      categories: [...new Set(existingProducts.map((p) => p.category).filter(Boolean))],
-      brands: [...new Set(existingProducts.map((p) => p.brand).filter(Boolean))],
-      units: [...new Set(existingProducts.map((p) => p.unit).filter(Boolean))],
-      genders: [...new Set(existingProducts.map((p) => p.gender).filter(Boolean))],
-      referenceParties: [...new Set(existingProducts.map((p) => p.referenceParty).filter(Boolean))],
-      rackAddresses: [...new Set(existingProducts.map((p) => p.rackAddress).filter(Boolean))],
-      availabilities: [...new Set(existingProducts.map((p) => p.availability).filter(Boolean))],
-      colors: [...new Set([...productColors, ...variantColors])],
-      gstRates: [...new Set(existingProducts.map((p) => p.gstRate).filter((g) => g !== null && g !== undefined))],
+      categories: [...new Set(existingProducts.map((p) => p.category).filter((c) => Boolean(c) && isNotDisabled("category", c)))],
+      brands: [...new Set(existingProducts.map((p) => p.brand).filter((b) => Boolean(b) && isNotDisabled("brand", b)))],
+      units: [...new Set(existingProducts.map((p) => p.unit).filter((u) => Boolean(u) && isNotDisabled("unit", u)))],
+      genders: [...new Set(existingProducts.map((p) => p.gender).filter((g) => Boolean(g) && isNotDisabled("gender", g)))],
+      referenceParties: [...new Set(existingProducts.map((p) => p.referenceParty).filter((r) => Boolean(r) && isNotDisabled("referenceparty", r)))],
+      rackAddresses: [...new Set(existingProducts.map((p) => p.rackAddress).filter((ra) => Boolean(ra) && isNotDisabled("rackaddress", ra)))],
+      availabilities: [...new Set(existingProducts.map((p) => p.availability).filter((a) => Boolean(a) && isNotDisabled("availability", a)))],
+      colors: [...new Set([...productColors, ...variantColors].filter((c) => Boolean(c) && isNotDisabled("color", c)))],
+      gstRates: [...new Set(existingProducts.map((p) => p.gstRate).filter((g) => g !== null && g !== undefined && isNotDisabled("gstrate", g)))],
     },
   };
 };

@@ -125,6 +125,11 @@ export const requirePermission = (resourceId, action) => {
         return next();
       }
 
+      // 3b. For ADMIN with unconfigured / empty allowedPages (legacy default), grant access
+      if (user.role === "ADMIN" && allowedPages.length === 0 && (!user.rights || user.rights === "[]")) {
+        return next();
+      }
+
       // 4. Fallback for legacy users without specific `rights` JSON
       // If the resource page is in allowedPages, allow read, or check if allowedPages permits it
       const hasPageAccess = allowedPages.some(

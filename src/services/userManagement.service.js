@@ -651,15 +651,54 @@ export const getUserDropdownOptionsService = async (userId) => {
   ];
   const userGenders = existingUsers.map((u) => u.gender).filter(Boolean);
 
-  const savedDepts = savedOptions.filter((o) => o.field.toLowerCase() === "department").map((o) => o.value);
-  const savedCompanies = savedOptions.filter((o) => o.field.toLowerCase() === "company").map((o) => o.value);
-  const savedGenders = savedOptions.filter((o) => o.field.toLowerCase() === "gender").map((o) => o.value);
+  // Exclude inactive options
+  const disabledDepts = new Set(
+    savedOptions
+      .filter((o) => o.field.toLowerCase() === "department" && o.isActive === false)
+      .map((o) => o.value.toLowerCase())
+  );
+  const activeSavedDepts = savedOptions
+    .filter((o) => o.field.toLowerCase() === "department" && o.isActive !== false)
+    .map((o) => o.label || o.value);
+
+  const disabledCompanies = new Set(
+    savedOptions
+      .filter((o) => o.field.toLowerCase() === "company" && o.isActive === false)
+      .map((o) => o.value.toLowerCase())
+  );
+  const activeSavedCompanies = savedOptions
+    .filter((o) => o.field.toLowerCase() === "company" && o.isActive !== false)
+    .map((o) => o.label || o.value);
+
+  const disabledGenders = new Set(
+    savedOptions
+      .filter((o) => o.field.toLowerCase() === "gender" && o.isActive === false)
+      .map((o) => o.value.toLowerCase())
+  );
+  const activeSavedGenders = savedOptions
+    .filter((o) => o.field.toLowerCase() === "gender" && o.isActive !== false)
+    .map((o) => o.label || o.value);
 
   return {
     savedOptions,
-    departments: [...new Set([...savedDepts, ...userDepts])],
-    companies: [...new Set([...savedCompanies, ...userCompanies])],
-    genders: [...new Set([...savedGenders, ...userGenders])],
+    departments: [
+      ...new Set([
+        ...activeSavedDepts,
+        ...userDepts.filter((d) => !disabledDepts.has(d.toLowerCase())),
+      ]),
+    ],
+    companies: [
+      ...new Set([
+        ...activeSavedCompanies,
+        ...userCompanies.filter((c) => !disabledCompanies.has(c.toLowerCase())),
+      ]),
+    ],
+    genders: [
+      ...new Set([
+        ...activeSavedGenders,
+        ...userGenders.filter((g) => !disabledGenders.has(g.toLowerCase())),
+      ]),
+    ],
   };
 };
 

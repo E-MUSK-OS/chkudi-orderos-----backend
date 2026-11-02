@@ -84,6 +84,7 @@ model User {
   myntraImports             MyntraImport[]
   companyEntities Company[] @relation("UserCompanyEntities")
   employees Employee[]
+  clientConfiguration ClientConfiguration? @relation("WorkspaceClientConfig")
 
   @@index([createdById])
   @@index([ownerId])
@@ -1453,7 +1454,9 @@ model DropdownOption {
   field     String
   value     String
   label     String
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, field, value])
@@ -1751,4 +1754,25 @@ enum PaymentStatus {
   PAID
   FAILED
   REFUNDED
+}
+
+
+// ========================= CLIENT CONFIGURATION MODEL =========================
+model ClientConfiguration {
+  id                        String   @id @default(cuid())
+  workspaceSuperAdminId     String   @unique
+  clientName                String   @default("Enterprise Plus")
+  subscriptionPlan          String   @default("Enterprise Plus")
+  hasSeparateInventoryDept  Boolean  @default(false)
+  enabledSections           String[] @default([])
+  enabledRoutes             String[] @default([])
+  configurationData         Json?
+  createdById               String?
+  updatedById               String?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  workspaceSuperAdmin       User     @relation("WorkspaceClientConfig", fields: [workspaceSuperAdminId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceSuperAdminId])
 }

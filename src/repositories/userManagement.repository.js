@@ -133,27 +133,100 @@ export const findManagedUsers = async ({
   }
 
   if (requestingUser.role === "SUPERADMIN") {
-    where.OR = [
-      { id: actorId },
-      { createdById: actorId },
-      { userMapping: { superAdminId: actorId } },
-      { userMapping: { adminId: actorId } },
+    // 1. Fetch all Admins belonging directly to this Super Admin
+    const managedAdmins = await prisma.user.findMany({
+      where: {
+        role: "ADMIN",
+        OR: [
+          { createdById: actorId },
+          { userMapping: { superAdminId: actorId } },
+          { userMapping: { adminId: actorId } },
+        ],
+      },
+      select: { id: true },
+    });
+    const adminIds = managedAdmins.map((a) => a.id);
+
+    // 2. Only include accounts strictly associated with this Super Admin
+    const associatedConditions = [
+      { id: actorId }, // The Super Admin themselves
+      { createdById: actorId }, // Created directly by this Super Admin
+      { userMapping: { superAdminId: actorId } }, // Mapped to this Super Admin
+      { userMapping: { adminId: actorId } }, // User mapped with adminId = superAdmin
       { userMapping: { admin: { createdById: actorId } } },
       { userMapping: { admin: { userMapping: { superAdminId: actorId } } } },
     ];
-  } else if (requestingUser.role === "ADMIN") {
-    const targetSaId = workspaceSuperAdminId || actorId;
-    where.OR = [
-      { id: actorId },
-      { id: targetSaId },
-      { userMapping: { superAdminId: targetSaId } },
-      { userMapping: { adminId: targetSaId } },
-      { userMapping: { adminId: actorId } },
-      { userMapping: { admin: { createdById: targetSaId } } },
-      { userMapping: { admin: { userMapping: { superAdminId: targetSaId } } } },
-      { createdById: targetSaId },
-      { createdById: actorId },
+
+    if (adminIds.length > 0) {
+      associatedConditions.push(
+        { createdById: { in: adminIds } }, // Created by an Admin under this Super Admin
+        { userMapping: { adminId: { in: adminIds } } }, // Assigned to an Admin under this Super Admin
+        { userMapping: { admin: { userMapping: { superAdminId: actorId } } } }
+      );
+    }
+
+    where.OR = associatedConditions;
+
+    // Strict boundary: Never return other SuperAdmins
+    where.NOT = [
+      {
+        AND: [
+          { role: "SUPERADMIN" },
+          { id: { not: actorId } },
+        ],
+      },
     ];
+  } else if (requestingUser.role === "ADMIN") {
+    const targetSaId = workspaceSuperAdminId;
+
+    let siblingAdminIds = [actorId];
+    if (targetSaId) {
+      const siblingAdmins = await prisma.user.findMany({
+        where: {
+          role: "ADMIN",
+          OR: [
+            { createdById: targetSaId },
+            { userMapping: { superAdminId: targetSaId } },
+          ],
+        },
+        select: { id: true },
+      });
+      siblingAdminIds = Array.from(new Set([actorId, ...siblingAdmins.map((a) => a.id)]));
+    }
+
+    const adminConditions = [
+      { id: actorId }, // The Admin themselves
+      { createdById: actorId }, // Created by this Admin
+      { userMapping: { adminId: actorId } }, // Mapped to this Admin
+    ];
+
+    if (targetSaId) {
+      adminConditions.push(
+        { id: targetSaId }, // Their managing Super Admin
+        { userMapping: { superAdminId: targetSaId } },
+        { createdById: targetSaId },
+        { createdById: { in: siblingAdminIds } },
+        { userMapping: { adminId: { in: siblingAdminIds } } }
+      );
+    }
+
+    where.OR = adminConditions;
+
+    // Never return any other SuperAdmin except the targetSaId
+    if (targetSaId) {
+      where.NOT = [
+        {
+          AND: [
+            { role: "SUPERADMIN" },
+            { id: { not: targetSaId } },
+          ],
+        },
+      ];
+    } else {
+      where.NOT = [
+        { role: "SUPERADMIN" },
+      ];
+    }
   }
 
   // Global search filtering

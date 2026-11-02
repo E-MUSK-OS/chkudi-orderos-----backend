@@ -405,12 +405,14 @@ export const getDropdownOptionsService = async (userId) => {
       where: { userId },
       select: {
         category: true,
+        manufacturingGroup: true,
+        subCategory: true,
         brand: true,
         unit: true,
-        gender: true,
-        referenceParty: true,
-        rackAddress: true,
-        availability: true,
+        costApplyingMode: true,
+        purchaseType: true,
+        issueMode: true,
+        consumptionMode: true,
         colors: true,
         gstRate: true,
       },
@@ -438,19 +440,36 @@ export const getDropdownOptionsService = async (userId) => {
 
   const materialColors = existingMaterials.flatMap((p) => p.colors || []).filter(Boolean);
 
+  // Build disabled lookup set to ensure deactivated options never leak through distinct lists
+  const disabledMap = new Map();
+  (userSaved || []).forEach((o) => {
+    if (o.isActive === false) {
+      const f = o.field.toLowerCase();
+      if (!disabledMap.has(f)) disabledMap.set(f, new Set());
+      disabledMap.get(f).add(o.value.trim().toLowerCase());
+    }
+  });
+
+  const isNotDisabled = (field, val) => {
+    if (val === null || val === undefined) return false;
+    const disabledSet = disabledMap.get(field.toLowerCase());
+    return !disabledSet || !disabledSet.has(String(val).trim().toLowerCase());
+  };
+
   return {
     savedOptions: userSaved,
-    parties: parties.map((p) => p.partyName).filter(Boolean),
+    parties: parties.map((p) => p.partyName).filter((p) => Boolean(p) && isNotDisabled("referenceparty", p)),
     distinctFromProducts: {
-      categories: [...new Set(existingMaterials.map((p) => p.category).filter(Boolean))],
-      brands: [...new Set(existingMaterials.map((p) => p.brand).filter(Boolean))],
-      units: [...new Set(existingMaterials.map((p) => p.unit).filter(Boolean))],
-      genders: [...new Set(existingMaterials.map((p) => p.gender).filter(Boolean))],
-      referenceParties: [...new Set(existingMaterials.map((p) => p.referenceParty).filter(Boolean))],
-      rackAddresses: [...new Set(existingMaterials.map((p) => p.rackAddress).filter(Boolean))],
-      availabilities: [...new Set(existingMaterials.map((p) => p.availability).filter(Boolean))],
-      colors: [...new Set([...materialColors, ...variantColors])],
-      gstRates: [...new Set(existingMaterials.map((p) => p.gstRate).filter((g) => g !== null && g !== undefined))],
+      categories: [...new Set(existingMaterials.map((p) => p.category).filter((c) => Boolean(c) && isNotDisabled("category", c)))],
+      manufacturingGroups: [...new Set(existingMaterials.map((p) => p.manufacturingGroup).filter((m) => Boolean(m) && isNotDisabled("manufacturinggroup", m)))],
+      brands: [...new Set(existingMaterials.map((p) => p.brand).filter((b) => Boolean(b) && isNotDisabled("brand", b)))],
+      units: [...new Set(existingMaterials.map((p) => p.unit).filter((u) => Boolean(u) && isNotDisabled("unit", u)))],
+      costApplyingModes: [...new Set(existingMaterials.map((p) => p.costApplyingMode).filter((c) => Boolean(c) && isNotDisabled("costapplyingmode", c)))],
+      purchaseTypes: [...new Set(existingMaterials.map((p) => p.purchaseType).filter((pt) => Boolean(pt) && isNotDisabled("purchasetype", pt)))],
+      issueModes: [...new Set(existingMaterials.map((p) => p.issueMode).filter((im) => Boolean(im) && isNotDisabled("issuemode", im)))],
+      consumptionModes: [...new Set(existingMaterials.map((p) => p.consumptionMode).filter((cm) => Boolean(cm) && isNotDisabled("consumptionmode", cm)))],
+      colors: [...new Set([...materialColors, ...variantColors].filter((c) => Boolean(c) && isNotDisabled("color", c)))],
+      gstRates: [...new Set(existingMaterials.map((p) => p.gstRate).filter((g) => g !== null && g !== undefined && isNotDisabled("gstrate", g)))],
     },
   };
 };
