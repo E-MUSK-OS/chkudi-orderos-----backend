@@ -6,29 +6,69 @@ export const createPartyRepo = async (data) => {
   });
 };
 
-export const findPartiesRepo = async (userId, { search = "", accountHead, limit = 50, page = 1 } = {}) => {
-  const where = {
-    userId,
-    ...(accountHead ? { accountHead } : {}),
-    ...(search
-      ? {
-          OR: [
-            { partyName: { contains: search, mode: "insensitive" } },
-            { accountCode: { contains: search, mode: "insensitive" } },
-            { alias: { contains: search, mode: "insensitive" } },
-            { phone: { contains: search, mode: "insensitive" } },
-            { contactPerson: { contains: search, mode: "insensitive" } },
-          ],
-        }
-      : {}),
-  };
+export const findPartiesRepo = async (
+  userId,
+  {
+    search = "",
+    ledgerName = "",
+    accountHead = "",
+    sortBy = "createdAt",
+    sortOrder = "desc",
+    limit = 50,
+    page = 1,
+  } = {}
+) => {
+  const andConditions = [{ userId }];
 
-  const skip = (page - 1) * limit;
+  if (accountHead && accountHead !== "All") {
+    andConditions.push({
+      accountHead: { equals: accountHead, mode: "insensitive" },
+    });
+  }
+
+  if (ledgerName) {
+    andConditions.push({
+      partyName: { contains: ledgerName, mode: "insensitive" },
+    });
+  }
+
+  if (search) {
+    andConditions.push({
+      OR: [
+        { partyName: { contains: search, mode: "insensitive" } },
+        { accountCode: { contains: search, mode: "insensitive" } },
+        { alias: { contains: search, mode: "insensitive" } },
+        { phone: { contains: search, mode: "insensitive" } },
+        { email: { contains: search, mode: "insensitive" } },
+        { contactPerson: { contains: search, mode: "insensitive" } },
+        { gstin: { contains: search, mode: "insensitive" } },
+        { legalName: { contains: search, mode: "insensitive" } },
+      ],
+    });
+  }
+
+  const where = andConditions.length > 1 ? { AND: andConditions } : andConditions[0];
+
+  const skip = (Math.max(1, page) - 1) * limit;
+
+  // Dynamic ordering
+  const validSortFields = [
+    "partyName",
+    "accountCode",
+    "accountHead",
+    "contactPerson",
+    "gstin",
+    "email",
+    "createdAt",
+    "updatedAt",
+  ];
+  const orderField = validSortFields.includes(sortBy) ? sortBy : "createdAt";
+  const orderDirection = sortOrder.toLowerCase() === "asc" ? "asc" : "desc";
 
   const [parties, total] = await Promise.all([
     prisma.party.findMany({
       where,
-      orderBy: { partyName: "asc" },
+      orderBy: { [orderField]: orderDirection },
       skip,
       take: limit,
     }),
@@ -73,4 +113,30 @@ export const deletePartyRepo = async (id, userId) => {
       userId,
     },
   });
+};
+
+export const bulkCreatePartiesRepo = async (partiesList) => {
+  const results = [];
+  for (const item of partiesList) {
+    const existing = await prisma.party.findFirst({
+      where: {
+        userId: item.userId,
+        partyName: { equals: item.partyName, mode: "insensitive" },
+      },
+    });
+
+    if (existing) {
+      const updated = await prisma.party.update({
+        where: { id: existing.id },
+        data: item,
+      });
+      results.push(updated);
+    } else {
+      const created = await prisma.party.create({
+        data: item,
+      });
+      results.push(created);
+    }
+  }
+  return results;
 };
