@@ -762,6 +762,7 @@ model Material {
   category           String
   manufacturingGroup String?
   subCategory        String?
+  forUse             String?
 
   description String?
 

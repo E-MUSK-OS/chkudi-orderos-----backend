@@ -236,6 +236,8 @@ export const importMaterialsFromExcelService = async (userId, fileBuffer) => {
     const masterSku = String(row["mastersku"] || row["sku"] || "").trim();
     const materialName = String(row["materialname"] || row["name"] || "").trim();
     const category = String(row["category"] || "").trim();
+    const subCategory = String(row["subcategory"] || row["sub_category"] || "").trim();
+    const forUse = String(row["foruse"] || row["for_use"] || row["for"] || "").trim();
     const manufacturingGroup = String(row["manufacturinggroup"] || row["mfggroup"] || "").trim();
     const unit = String(row["unit"] || "Meters").trim();
     const hsnCode = String(row["hsncode"] || row["hsn"] || "").trim();
@@ -307,6 +309,8 @@ export const importMaterialsFromExcelService = async (userId, fileBuffer) => {
       masterSku,
       materialName,
       category,
+      subCategory: subCategory || null,
+      forUse: forUse || null,
       manufacturingGroup,
       unit,
       colors,
@@ -373,6 +377,8 @@ export const autoPersistMaterialOptions = async (userId, data) => {
   try {
     const fieldsToPersist = [
       "category",
+      "subCategory",
+      "forUse",
       "brand",
       "unit",
       "manufacturingGroup",
@@ -405,6 +411,8 @@ export const getDropdownOptionsService = async (userId) => {
       where: { userId },
       select: {
         category: true,
+        subCategory: true,
+        forUse: true,
         brand: true,
         unit: true,
         gender: true,
