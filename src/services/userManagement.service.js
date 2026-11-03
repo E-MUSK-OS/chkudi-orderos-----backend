@@ -1,5 +1,7 @@
 import bcrypt from "bcrypt";
 import prisma from "../config/prisma.js";
+import { getAllMasterDropdownOptionsService } from "./settingMasters.service.js";
+import { getWorkspaceDropdownManagementMode } from "./clientConfiguration.service.js";
 import {
   findManagedUsers,
   findUserById,
@@ -620,10 +622,7 @@ export const updateUserStatusService = async ({ id, requestingUser, isActive }) 
 
 export const getUserDropdownOptionsService = async (userId) => {
   const [savedOptions, companies, existingUsers] = await Promise.all([
-    prisma.dropdownOption.findMany({
-      where: { userId },
-      orderBy: { createdAt: "asc" },
-    }),
+    getAllMasterDropdownOptionsService(userId),
     prisma.company.findMany({
       where: { userId },
       select: { companyName: true },
@@ -645,11 +644,10 @@ export const getUserDropdownOptionsService = async (userId) => {
   ]);
 
   const userDepts = existingUsers.flatMap((u) => u.departments || []).filter(Boolean);
-  const userCompanies = [
-    ...companies.map((c) => c.companyName).filter(Boolean),
-    ...existingUsers.flatMap((u) => u.companies || []).filter(Boolean),
-  ];
+  const userCompanies = companies.map((c) => c.companyName).filter(Boolean);
   const userGenders = existingUsers.map((u) => u.gender).filter(Boolean);
+
+  const isExcludedGender = (g) => ["male", "female"].includes(String(g || "").trim().toLowerCase());
 
   // Exclude inactive options
   const disabledDepts = new Set(
@@ -676,7 +674,7 @@ export const getUserDropdownOptionsService = async (userId) => {
       .map((o) => o.value.toLowerCase())
   );
   const activeSavedGenders = savedOptions
-    .filter((o) => o.field.toLowerCase() === "gender" && o.isActive !== false)
+    .filter((o) => o.field.toLowerCase() === "gender" && o.isActive !== false && !isExcludedGender(o.value))
     .map((o) => o.label || o.value);
 
   return {
@@ -696,13 +694,17 @@ export const getUserDropdownOptionsService = async (userId) => {
     genders: [
       ...new Set([
         ...activeSavedGenders,
-        ...userGenders.filter((g) => !disabledGenders.has(g.toLowerCase())),
+        ...userGenders.filter((g) => !disabledGenders.has(g.toLowerCase()) && !isExcludedGender(g)),
       ]),
     ],
   };
 };
 
 export const saveUserDropdownOptionService = async (userId, data) => {
+  const mode = await getWorkspaceDropdownManagementMode(userId);
+  if (mode === "SETTING_MASTERS") {
+    throw new Error("Inline option creation is disabled. Dropdowns are restricted to Setting Masters pre-configured options.");
+  }
   const { field, value, label } = data;
   if (!field || !value) {
     throw new Error("Field and value are required.");

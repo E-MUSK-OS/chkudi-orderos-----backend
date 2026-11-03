@@ -5,7 +5,23 @@ import {
   updateOptionService,
   toggleOptionActiveService,
   deleteOptionService,
+  seedAllSettingMasterDefaultsService,
 } from "../services/settingMasters.service.js";
+
+export const seedAllSettingMasterDefaults = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const force = Boolean(req.body?.force);
+    const result = await seedAllSettingMasterDefaultsService(userId, { force });
+    return res.status(200).json({
+      success: true,
+      message: "Setting master defaults seeded successfully",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 export const getFieldGroups = async (req, res, next) => {
   try {
@@ -70,9 +86,9 @@ export const updateOption = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const { id } = req.params;
-    const { field, value, label, isActive, oldValue } = req.body;
+    const { field, value, label, isActive, oldValue, oldLabel } = req.body;
 
-    const updated = await updateOptionService(userId, id, { field, value, label, isActive, oldValue });
+    const updated = await updateOptionService(userId, id, { field, value, label, isActive, oldValue, oldLabel });
     return res.status(200).json({
       success: true,
       message: "Option updated successfully",
@@ -106,8 +122,9 @@ export const deleteOption = async (req, res, next) => {
     const { id } = req.params;
     const field = req.query?.field || req.body?.field;
     const value = req.query?.value || req.body?.value;
+    const label = req.query?.label || req.body?.label;
 
-    await deleteOptionService(userId, id, { field, value });
+    await deleteOptionService(userId, id, { field, value, label });
     return res.status(200).json({
       success: true,
       message: "Option deleted successfully",

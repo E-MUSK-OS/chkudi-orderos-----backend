@@ -19,6 +19,8 @@ import { updateVariantsStatusByMaterial } from "../repositories/materialVariant.
 import { upsertAsinImport } from "../repositories/asinImport.repository.js";
 import prisma from "../config/prisma.js";
 import * as xlsx from "xlsx";
+import { getAllMasterDropdownOptionsService, normalizeFieldKey, ensureFieldDefaultsInDb } from "./settingMasters.service.js";
+import { getWorkspaceDropdownManagementMode } from "./clientConfiguration.service.js";
 
 // ======================================================
 // Validate Material Attributes
@@ -412,6 +414,20 @@ export const autoPersistMaterialOptions = async (userId, data) => {
             value: trimmed,
             label: trimmed,
           });
+          if (field === "category") {
+            await upsertDropdownOption(userId, {
+              field: "materialcategory",
+              value: trimmed,
+              label: trimmed,
+            });
+          }
+          if (field === "subCategory") {
+            await upsertDropdownOption(userId, {
+              field: "materialsubcategory",
+              value: trimmed,
+              label: trimmed,
+            });
+          }
         }
       }
     }
@@ -422,59 +438,73 @@ export const autoPersistMaterialOptions = async (userId, data) => {
 
 export const getDropdownOptionsService = async (userId) => {
   const [userSaved, parties, existingMaterials, variantColorAttrs] = await Promise.all([
-    getDropdownOptionsByUserId(userId),
-    getPartiesByUserId(userId),
-    prisma.material.findMany({
-      where: { userId },
-      select: {
-        category: true,
-        subCategory: true,
-        forUse: true,
-        brand: true,
-        unit: true,
-        manufacturingGroup: true,
-        costApplyingMode: true,
-        purchaseType: true,
-        issueMode: true,
-        consumptionMode: true,
-        gender: true,
-        referenceParty: true,
-        rackAddress: true,
-        availability: true,
-        colors: true,
-        gstRate: true,
-      },
+    getAllMasterDropdownOptionsService(userId).catch((err) => {
+      console.error("Error fetching master dropdown options:", err);
+      return [];
     }),
-    prisma.materialVariantAttribute.findMany({
-      where: {
-        materialVariant: {
-          material: { userId },
+    getPartiesByUserId(userId).catch((err) => {
+      console.error("Error fetching parties:", err);
+      return [];
+    }),
+    prisma.material
+      .findMany({
+        where: { userId },
+        select: {
+          category: true,
+          subCategory: true,
+          forUse: true,
+          brand: true,
+          unit: true,
+          manufacturingGroup: true,
+          costApplyingMode: true,
+          purchaseType: true,
+          issueMode: true,
+          consumptionMode: true,
+          gender: true,
+          referenceParty: true,
+          rackAddress: true,
+          availability: true,
+          colors: true,
+          gstRate: true,
         },
-        materialAttribute: {
-          attributeName: {
-            in: ["Colour", "colour", "Color", "color"],
+      })
+      .catch((err) => {
+        console.error("Error fetching existing materials:", err);
+        return [];
+      }),
+    prisma.materialVariantAttribute
+      .findMany({
+        where: {
+          materialVariant: {
+            material: { userId },
+          },
+          materialAttribute: {
+            attributeName: {
+              in: ["Colour", "colour", "Color", "color"],
+            },
           },
         },
-      },
-      select: {
-        attributeValue: true,
-      },
-    }).catch(() => []),
+        select: {
+          attributeValue: true,
+        },
+      })
+      .catch(() => []),
   ]);
 
   const variantColors = (variantColorAttrs || [])
     .flatMap((va) => (va.attributeValue ? va.attributeValue.split(",").map((s) => s.trim()) : []))
     .filter(Boolean);
 
-  const materialColors = existingMaterials.flatMap((p) => p.colors || []).filter(Boolean);
+  const materialColors = (existingMaterials || []).flatMap((p) => p.colors || []).filter(Boolean);
 
   // Build disabled lookup set to ensure deactivated options never leak through distinct lists
   const disabledMap = new Map();
   (userSaved || []).forEach((o) => {
-    if (o.isActive === false) {
+    if (o.isActive === false || o.label === "__DELETED__") {
       const f = o.field.toLowerCase();
       if (!disabledMap.has(f)) disabledMap.set(f, new Set());
-      disabledMap.get(f).add(o.value.trim().toLowerCase());
+      if (o.value) disabledMap.get(f).add(o.value.trim().toLowerCase());
+      if (o.label && o.label !== "__DELETED__") disabledMap.get(f).add(o.label.trim().toLowerCase());
     }
   });
 
@@ -542,6 +572,20 @@ export const getDropdownOptionsService = async (userId) => {
 };
 
 export const saveDropdownOptionService = async (userId, data) => {
-  return await upsertDropdownOption(userId, data);
+  const rawField = data?.field ? String(data.field).trim().toLowerCase() : "";
+  let targetField = rawField;
+  if (rawField === "materialcategory" || rawField === "category") {
+    targetField = "materialcategory";
+  } else if (rawField === "materialsubcategory" || rawField === "subcategory") {
+    targetField = "materialsubcategory";
+  } else if (rawField === "colour" || rawField === "colours") {
+    targetField = "color";
+  } else {
+    targetField = normalizeFieldKey(rawField);
+  }
+  if (targetField) {
+    await ensureFieldDefaultsInDb(userId, targetField);
+  }
+  return await upsertDropdownOption(userId, { ...data, field: targetField });
 };
 

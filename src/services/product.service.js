@@ -21,6 +21,8 @@ import { updateVariantsStatusByProduct } from "../repositories/productVariant.re
 import { upsertAsinImport } from "../repositories/asinImport.repository.js";
 import prisma from "../config/prisma.js";
 import { syncProductInventoryService } from "./inventory.service.js";
+import { getAllMasterDropdownOptionsService, normalizeFieldKey, ensureFieldDefaultsInDb } from "./settingMasters.service.js";
+import { getWorkspaceDropdownManagementMode } from "./clientConfiguration.service.js";
 
 // ======================================================
 // Validate Product Attributes
@@ -930,52 +932,66 @@ export const autoPersistProductOptions = async (userId, data) => {
 
 export const getDropdownOptionsService = async (userId) => {
   const [userSaved, parties, existingProducts, variantColorAttrs] = await Promise.all([
-    getDropdownOptionsByUserId(userId),
-    getPartiesByUserId(userId),
-    prisma.product.findMany({
-      where: { userId },
-      select: {
-        category: true,
-        brand: true,
-        unit: true,
-        gender: true,
-        referenceParty: true,
-        rackAddress: true,
-        availability: true,
-        colors: true,
-        gstRate: true,
-      },
+    getAllMasterDropdownOptionsService(userId).catch((err) => {
+      console.error("Error fetching master dropdown options:", err);
+      return [];
     }),
-    prisma.productVariantAttribute.findMany({
-      where: {
-        productVariant: {
-          product: { userId },
+    getPartiesByUserId(userId).catch((err) => {
+      console.error("Error fetching parties:", err);
+      return [];
+    }),
+    prisma.product
+      .findMany({
+        where: { userId },
+        select: {
+          category: true,
+          brand: true,
+          unit: true,
+          gender: true,
+          referenceParty: true,
+          rackAddress: true,
+          availability: true,
+          colors: true,
+          gstRate: true,
         },
-        productAttribute: {
-          attributeName: {
-            in: ["Colour", "colour", "Color", "color"],
+      })
+      .catch((err) => {
+        console.error("Error fetching existing products:", err);
+        return [];
+      }),
+    prisma.productVariantAttribute
+      .findMany({
+        where: {
+          productVariant: {
+            product: { userId },
+          },
+          productAttribute: {
+            attributeName: {
+              in: ["Colour", "colour", "Color", "color"],
+            },
           },
         },
-      },
-      select: {
-        attributeValue: true,
-      },
-    }).catch(() => []),
+        select: {
+          attributeValue: true,
+        },
+      })
+      .catch(() => []),
   ]);
 
   const variantColors = (variantColorAttrs || [])
     .flatMap((va) => (va.attributeValue ? va.attributeValue.split(",").map((s) => s.trim()) : []))
     .filter(Boolean);
 
-  const productColors = existingProducts.flatMap((p) => p.colors || []).filter(Boolean);
+  const productColors = (existingProducts || []).flatMap((p) => p.colors || []).filter(Boolean);
 
   // Build disabled lookup set to ensure deactivated options never leak through distinct lists
   const disabledMap = new Map();
   (userSaved || []).forEach((o) => {
-    if (o.isActive === false) {
+    if (o.isActive === false || o.label === "__DELETED__") {
       const f = o.field.toLowerCase();
       if (!disabledMap.has(f)) disabledMap.set(f, new Set());
-      disabledMap.get(f).add(o.value.trim().toLowerCase());
+      if (o.value) disabledMap.get(f).add(o.value.trim().toLowerCase());
+      if (o.label && o.label !== "__DELETED__") disabledMap.get(f).add(o.label.trim().toLowerCase());
     }
   });
 
@@ -986,13 +1002,21 @@ export const getDropdownOptionsService = async (userId) => {
   };
 
   return {
-    savedOptions: userSaved,
+    savedOptions: userSaved.filter(
+      (o) => !(o.field.toLowerCase() === "gender" && ["male", "female"].includes(String(o.value).trim().toLowerCase()))
+    ),
     parties: parties.map((p) => p.partyName).filter((p) => Boolean(p) && isNotDisabled("referenceparty", p)),
     distinctFromProducts: {
       categories: [...new Set(existingProducts.map((p) => p.category).filter((c) => Boolean(c) && isNotDisabled("category", c)))],
       brands: [...new Set(existingProducts.map((p) => p.brand).filter((b) => Boolean(b) && isNotDisabled("brand", b)))],
       units: [...new Set(existingProducts.map((p) => p.unit).filter((u) => Boolean(u) && isNotDisabled("unit", u)))],
-      genders: [...new Set(existingProducts.map((p) => p.gender).filter((g) => Boolean(g) && isNotDisabled("gender", g)))],
+      genders: [
+        ...new Set(
+          existingProducts
+            .map((p) => p.gender)
+            .filter((g) => Boolean(g) && isNotDisabled("gender", g) && !["male", "female"].includes(g.toLowerCase()))
+        ),
+      ],
       referenceParties: [...new Set(existingProducts.map((p) => p.referenceParty).filter((r) => Boolean(r) && isNotDisabled("referenceparty", r)))],
       rackAddresses: [...new Set(existingProducts.map((p) => p.rackAddress).filter((ra) => Boolean(ra) && isNotDisabled("rackaddress", ra)))],
       availabilities: [...new Set(existingProducts.map((p) => p.availability).filter((a) => Boolean(a) && isNotDisabled("availability", a)))],
@@ -1003,7 +1027,21 @@ export const getDropdownOptionsService = async (userId) => {
 };
 
 export const saveDropdownOptionService = async (userId, data) => {
-  return await upsertDropdownOption(userId, data);
+  const rawField = data?.field ? String(data.field).trim().toLowerCase() : "";
+  let targetField = rawField;
+  if (rawField === "productcategory" || rawField === "category") {
+    targetField = "category";
+  } else if (rawField === "productsubcategory" || rawField === "subcategory") {
+    targetField = "subcategory";
+  } else if (rawField === "colour" || rawField === "colours") {
+    targetField = "color";
+  } else {
+    targetField = normalizeFieldKey(rawField);
+  }
+  if (targetField) {
+    await ensureFieldDefaultsInDb(userId, targetField);
+  }
+  return await upsertDropdownOption(userId, { ...data, field: targetField });
 };
 
 

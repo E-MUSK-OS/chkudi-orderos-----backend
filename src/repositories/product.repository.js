@@ -899,12 +899,14 @@ export const upsertDropdownOption = async (userId, { field, value, label }) => {
     },
     update: {
       label: cleanLabel,
+      isActive: true,
     },
     create: {
       userId,
       field: cleanField,
       value: cleanValue,
       label: cleanLabel,
+      isActive: true,
     },
   });
 };
