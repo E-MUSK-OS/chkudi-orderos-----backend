@@ -14,6 +14,7 @@ export const DEFAULT_ENABLED_SECTIONS = [
   "offline-sales",
   "purchase",
   "settings",
+  "account",
 ];
 
 export const getClientConfigService = async (requestingUser) => {

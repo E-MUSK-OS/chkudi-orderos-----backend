@@ -134,6 +134,10 @@ export const findUserProfileById = async (id) => {
       allowedPages: true,
       rights: true,
       avatar: true,
+      dob: true,
+      gender: true,
+      departments: true,
+      companies: true,
       createdAt: true,
       updatedAt: true,
       userMapping: {

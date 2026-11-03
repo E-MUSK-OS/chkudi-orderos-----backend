@@ -766,8 +766,14 @@ export const deleteUserService = async ({ requestingUser, id }) => {
     throw new Error("User not found.");
   }
 
+  // SuperAdmin accounts can NEVER be deleted by Admin, User, or anyone
   if (target.role === "SUPERADMIN") {
-    throw new Error("SuperAdmin accounts cannot be deleted.");
+    throw new Error("Access denied. SuperAdmin accounts cannot be deleted.");
+  }
+
+  // Admins cannot delete other Admins
+  if (requestingUser.role === "ADMIN" && target.role === "ADMIN") {
+    throw new Error("Access denied. Admins cannot delete other Admin accounts.");
   }
 
   return await deleteUserById(id);
