@@ -49,7 +49,9 @@ export const findPartiesRepo = async (
 
   const where = andConditions.length > 1 ? { AND: andConditions } : andConditions[0];
 
-  const skip = (Math.max(1, page) - 1) * limit;
+  const safeLimit = Math.max(1, parseInt(limit, 10) || 50);
+  const safePage = Math.max(1, parseInt(page, 10) || 1);
+  const skip = (safePage - 1) * safeLimit;
 
   // Dynamic ordering
   const validSortFields = [
@@ -70,12 +72,12 @@ export const findPartiesRepo = async (
       where,
       orderBy: { [orderField]: orderDirection },
       skip,
-      take: limit,
+      take: safeLimit,
     }),
     prisma.party.count({ where }),
   ]);
 
-  return { parties, total, page, limit };
+  return { parties, total, page: safePage, limit: safeLimit };
 };
 
 export const findPartyByIdRepo = async (id, userId) => {

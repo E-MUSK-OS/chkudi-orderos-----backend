@@ -22,7 +22,7 @@ export const errorHandler = (err, req, res, next) => {
   ) {
     return res.status(408).json({
       success: false,
-      message: "Operation timed out while processing product variants. Please try again.",
+      message: "Operation timed out. Please try again.",
     });
   }
 
@@ -39,7 +39,7 @@ export const errorHandler = (err, req, res, next) => {
   if (rawMsg.includes("Invalid `prisma.") || rawMsg.includes("PrismaClient")) {
     return res.status(500).json({
       success: false,
-      message: "Database operation could not be completed. Please check your product attributes and try again.",
+      message: "Database operation could not be completed. Please try again.",
     });
   }
 

@@ -7,7 +7,7 @@ import { updateProfileSchema } from "../validations/profile.validation.js";
 
 export const getProfile = async (req, res) => {
   try {
-    const user = await getProfileService(req.user.id);
+    const user = await getProfileService(req.user.actualId || req.user.id);
 
     return res.status(200).json({
       success: true,
@@ -26,7 +26,7 @@ export const updateProfile = async (req, res) => {
   try {
     const data = updateProfileSchema.parse(req.body);
 
-    const user = await updateProfileService(req.user.id, data);
+    const user = await updateProfileService(req.user.actualId || req.user.id, data);
 
     return res.status(200).json({
       success: true,

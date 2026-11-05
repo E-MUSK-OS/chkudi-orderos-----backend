@@ -170,6 +170,14 @@ export const getInventories = async ({
     where.OR = [
       {
         productVariant: {
+          asin: {
+            contains: search,
+            mode: "insensitive",
+          },
+        },
+      },
+      {
+        productVariant: {
           variantSku: {
             contains: search,
             mode: "insensitive",
@@ -188,6 +196,32 @@ export const getInventories = async ({
         },
       },
 
+      {
+        productVariant: {
+          product: {
+            asin: {
+              contains: search,
+              mode: "insensitive",
+            },
+          },
+        },
+      },
+      {
+        productVariant: {
+          myntraSku: {
+            contains: search,
+            mode: "insensitive",
+          },
+        },
+      },
+      {
+        productVariant: {
+          fsnCode: {
+            contains: search,
+            mode: "insensitive",
+          },
+        },
+      },
       {
         productVariant: {
           product: {

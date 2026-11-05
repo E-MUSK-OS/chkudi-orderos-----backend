@@ -20,6 +20,9 @@ import {
 import { updateVariantsStatusByProduct } from "../repositories/productVariant.repository.js";
 import { upsertAsinImport } from "../repositories/asinImport.repository.js";
 import prisma from "../config/prisma.js";
+import { syncProductInventoryService } from "./inventory.service.js";
+import { getAllMasterDropdownOptionsService, normalizeFieldKey, ensureFieldDefaultsInDb } from "./settingMasters.service.js";
+import { getWorkspaceDropdownManagementMode } from "./clientConfiguration.service.js";
 
 // ======================================================
 // Validate Product Attributes
@@ -71,6 +74,8 @@ export const createProductService = async (userId, data) => {
   const product = await createProduct({
     ...data,
     asin: data.asin?.trim() || null,
+    myntraSku: data.myntraSku?.trim() || null,
+    fsnCode: data.fsnCode?.trim() || null,
     generateBarcode: data.generateBarcode ? data.generateBarcode.trim() : "No",
     isActive: data.isActive ?? true,
     userId,
@@ -92,6 +97,7 @@ export const createProductService = async (userId, data) => {
   }
 
   await autoPersistProductOptions(userId, data);
+  await syncProductInventoryService(product.id, userId);
   return product;
 };
 
@@ -146,6 +152,8 @@ export const updateProductService = async (id, userId, data) => {
   await updateProduct(id, {
     ...data,
     ...(data.asin !== undefined ? { asin: data.asin?.trim() || null } : {}),
+    ...(data.myntraSku !== undefined ? { myntraSku: data.myntraSku?.trim() || null } : {}),
+    ...(data.fsnCode !== undefined ? { fsnCode: data.fsnCode?.trim() || null } : {}),
     ...(data.generateBarcode !== undefined ? { generateBarcode: data.generateBarcode?.trim() || "No" } : {}),
   });
 
@@ -209,6 +217,7 @@ export const updateProductService = async (id, userId, data) => {
   }
 
   await autoPersistProductOptions(userId, data);
+  await syncProductInventoryService(product.id, userId);
   return updatedProduct;
 };
 
@@ -324,107 +333,211 @@ export const importProductsFromExcelService = async (userId, fileBuffer) => {
 
   // Use xlsx to safely read the file buffer
   const workbook = xlsx.read(fileBuffer, { type: "buffer" });
-  const sheetName = workbook.SheetNames[0];
-  const worksheet = workbook.Sheets[sheetName];
+  let worksheet = null;
+  let targetSheetName = "";
+
+  // Look for a sheet that actually has content (skip empty instruction sheets if any)
+  for (const name of workbook.SheetNames) {
+    const ws = workbook.Sheets[name];
+    if (ws && ws["!ref"]) {
+      const parsed = xlsx.utils.sheet_to_json(ws, { header: 1, defval: "" });
+      if (parsed.length >= 2) {
+        worksheet = ws;
+        targetSheetName = name;
+        break;
+      }
+    }
+  }
 
   if (!worksheet) {
-    throw new Error("Excel sheet is empty.");
+    worksheet = workbook.Sheets[workbook.SheetNames[0]];
+  }
+
+  if (!worksheet) {
+    throw new Error("Excel sheet is empty or contains no readable sheets.");
   }
 
   // Parse to array of arrays
   const rows = xlsx.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
   if (rows.length < 2) {
-    throw new Error("No valid product data found in Excel file.");
+    throw new Error("No valid data rows found in the uploaded Excel file.");
   }
 
-  const headerRow = rows[0];
-  const headerMap = {};
+  // Dynamically scan the first 10 rows to find the exact header row
+  let headerRowIndex = 0;
+  let maxMatchedScore = 0;
 
-  headerRow.forEach((cellVal, colIndex) => {
-    const rawText = String(cellVal || "").trim();
-    const headerText = rawText.toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (headerText) {
-      headerMap[headerText] = colIndex;
+  for (let r = 0; r < Math.min(rows.length, 10); r++) {
+    const candidateRow = rows[r];
+    if (!Array.isArray(candidateRow) || candidateRow.length === 0) continue;
+
+    let score = 0;
+    candidateRow.forEach((cellVal) => {
+      const clean = String(cellVal || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (clean.includes("variantsku") || clean.includes("variant") || clean === "sku") score += 3;
+      if (clean.includes("asin")) score += 2;
+      if (clean.includes("myntra")) score += 2;
+      if (clean.includes("fsn") || clean.includes("flipkart") || clean.includes("flipcart")) score += 2;
+      if (clean.includes("rack")) score += 1;
+      if (clean.includes("color") || clean.includes("colour")) score += 1;
+      if (clean.includes("size")) score += 1;
+      if (clean.includes("gender")) score += 1;
+      if (clean.includes("mastersku") || clean.includes("productname")) score += 2;
+    });
+
+    if (score > maxMatchedScore) {
+      maxMatchedScore = score;
+      headerRowIndex = r;
+    }
+  }
+
+  const headerRow = rows[headerRowIndex];
+
+  let colIndexVariantSku = -1;
+  let colIndexAsin = -1;
+  let colIndexMyntraSku = -1;
+  let colIndexFsnCode = -1;
+  let colIndexRack = -1;
+  let colIndexColor = -1;
+  let colIndexSize = -1;
+  let colIndexGender = -1;
+  let colIndexMasterSku = -1;
+  let colIndexProductName = -1;
+
+  headerRow.forEach((cellVal, idx) => {
+    const raw = String(cellVal || "").trim().toLowerCase();
+    const clean = raw.replace(/[^a-z0-9]/g, "");
+
+    // Variant SKU column match
+    if (
+      clean === "variantsku" ||
+      clean === "variant" ||
+      clean === "productvariantsku" ||
+      clean === "childsku" ||
+      clean === "subsku" ||
+      clean === "sellersku" ||
+      clean === "itemsku" ||
+      clean === "sku" ||
+      clean === "skucode" ||
+      clean === "skuid" ||
+      (clean.includes("variant") && clean.includes("sku"))
+    ) {
+      if (colIndexVariantSku === -1 || clean.includes("variant")) {
+        colIndexVariantSku = idx;
+      }
+    }
+
+    // ASIN column match
+    if (clean.includes("asin")) {
+      colIndexAsin = idx;
+    }
+
+    // Myntra SKU column match
+    if (clean.includes("myntra")) {
+      colIndexMyntraSku = idx;
+    }
+
+    // FSN Code column match
+    if (clean.includes("fsn") || clean.includes("flipkart") || clean.includes("flipcart")) {
+      colIndexFsnCode = idx;
+    }
+
+    // Rack Address column match
+    if (clean.includes("rack")) {
+      colIndexRack = idx;
+    }
+
+    // Color column match
+    if (clean.includes("color") || clean.includes("colour")) {
+      colIndexColor = idx;
+    }
+
+    // Size column match
+    if (clean.includes("size")) {
+      colIndexSize = idx;
+    }
+
+    // Gender column match
+    if (clean.includes("gender")) {
+      colIndexGender = idx;
+    }
+
+    // Master SKU column match
+    if (clean.includes("mastersku") || clean.includes("parentsku")) {
+      colIndexMasterSku = idx;
+    }
+
+    // Product Name column match
+    if (clean.includes("productname") || clean === "product" || clean === "title") {
+      colIndexProductName = idx;
     }
   });
 
-  const hasProductName =
-    headerMap["productname"] !== undefined ||
-    headerMap["product"] !== undefined ||
-    headerMap["title"] !== undefined;
-  const hasMasterSku =
-    headerMap["mastersku"] !== undefined ||
-    headerMap["sku"] !== undefined ||
-    headerMap["masterskucode"] !== undefined;
-  const hasVariantSku =
-    headerMap["variantsku"] !== undefined ||
-    (headerMap["sku"] !== undefined &&
-      (headerMap["color"] !== undefined ||
-        headerMap["colour"] !== undefined ||
-        headerMap["size"] !== undefined ||
-        headerMap["gender"] !== undefined));
-  const isMyntraSheet =
-    headerMap["myntrasku"] !== undefined ||
-    headerMap["myntraskucode"] !== undefined;
+  // Collect any other dynamic attribute columns (e.g. Material, Storage, RAM, etc.)
+  const dynamicAttributeCols = [];
+  headerRow.forEach((cellVal, idx) => {
+    if (
+      idx !== colIndexVariantSku &&
+      idx !== colIndexAsin &&
+      idx !== colIndexMyntraSku &&
+      idx !== colIndexFsnCode &&
+      idx !== colIndexRack &&
+      idx !== colIndexColor &&
+      idx !== colIndexSize &&
+      idx !== colIndexGender &&
+      idx !== colIndexMasterSku &&
+      idx !== colIndexProductName
+    ) {
+      const headerName = String(cellVal || "").trim();
+      const lower = headerName.toLowerCase();
+      if (
+        headerName &&
+        !["status", "action", "img", "image", "actions"].includes(lower)
+      ) {
+        dynamicAttributeCols.push({ headerName, colIndex: idx });
+      }
+    }
+  });
 
-  const isVariantSheet = hasVariantSku && !isMyntraSheet;
-  const isLegacyProductSheet = hasProductName && hasMasterSku && !isMyntraSheet;
+  const isVariantSheet = colIndexVariantSku !== -1;
+  const isLegacyProductSheet = !isVariantSheet && colIndexMasterSku !== -1;
 
   if (!isVariantSheet && !isLegacyProductSheet) {
     throw new Error(
-      "Please upload the appropriate sheet format for Product Import! You can download the demo sheet for reference."
+      "Could not detect a SKU or Variant SKU column in the uploaded sheet. Please ensure the header row includes a 'Variant SKU' column. You can download the demo sheet for reference."
     );
   }
 
-  const getColValue = (row, fieldKeys) => {
-    for (const key of fieldKeys) {
-      const colNum = headerMap[key];
-      if (colNum !== undefined) {
-        const extracted = String(row[colNum] || "").trim();
-        if (extracted) {
-          return extracted;
-        }
-      }
-    }
-    return "";
-  };
-
-  const createdProducts = [];
   const errors = [];
+  const notFoundSkus = [];
+  let updatedCount = 0;
+  const affectedProducts = new Map();
 
   // --------------------------------------------------------------------------
-  // BRANCH A: Variant SKU Sheet Format (matches exported / new demo sheet)
+  // BRANCH A: Variant SKU Sheet (updates every data related to that variant SKU)
+  // Only existing data is updated; no new product or variant addition.
   // --------------------------------------------------------------------------
-  if (isVariantSheet && !isLegacyProductSheet) {
-    const affectedProducts = new Map();
+  if (isVariantSheet) {
+    const dataStartRow = headerRowIndex + 1;
 
-    // Cache candidate existing products for user to help common SKU prefix matching
-    const existingProductsList = await prisma.product.findMany({
-      where: { userId },
-      select: {
-        id: true,
-        masterSku: true,
-        sku: true,
-        productName: true,
-      },
-    });
-
-    const nonMatchingGroups = new Map();
-
-    for (let rowNum = 1; rowNum < rows.length; rowNum++) {
+    for (let rowNum = dataStartRow; rowNum < rows.length; rowNum++) {
       const row = rows[rowNum];
-      const variantSku = String(getColValue(row, ["variantsku", "sku", "mastersku"]) || "").trim();
+      if (!Array.isArray(row) || row.length === 0) continue;
+
+      const variantSkuRaw = colIndexVariantSku !== -1 ? row[colIndexVariantSku] : "";
+      const variantSku = String(variantSkuRaw || "").trim();
       if (!variantSku) continue;
 
-      const asin = getColValue(row, ["asin"]);
-      const rackAddress = getColValue(row, ["rackaddress", "rack", "racklocation"]);
-      const color = getColValue(row, ["color", "colour"]);
-      const size = getColValue(row, ["size"]);
-      const gender = getColValue(row, ["gender"]);
-      const explicitMasterSku = getColValue(row, ["mastersku", "base_sku", "productsku"]);
+      const asin = colIndexAsin !== -1 ? String(row[colIndexAsin] || "").trim() : "";
+      const myntraSku = colIndexMyntraSku !== -1 ? String(row[colIndexMyntraSku] || "").trim() : "";
+      const fsnCode = colIndexFsnCode !== -1 ? String(row[colIndexFsnCode] || "").trim() : "";
+      const rackAddress = colIndexRack !== -1 ? String(row[colIndexRack] || "").trim() : "";
+      const color = colIndexColor !== -1 ? String(row[colIndexColor] || "").trim() : "";
+      const size = colIndexSize !== -1 ? String(row[colIndexSize] || "").trim() : "";
+      const gender = colIndexGender !== -1 ? String(row[colIndexGender] || "").trim() : "";
 
       try {
-        // Step 1: Check in our DB for variant SKU
+        // Find existing variant in DB for this user's products
         const existingVariant = await prisma.productVariant.findFirst({
           where: {
             variantSku: { equals: variantSku, mode: "insensitive" },
@@ -444,445 +557,34 @@ export const importProductsFromExcelService = async (userId, fileBuffer) => {
           },
         });
 
-        // Step 2: If both matches, update that variant SKU all details
-        if (existingVariant) {
-          const product = existingVariant.product;
-
-          // Check if color or size changed compared to existing variant attributes
-          const existingColorVal = existingVariant.attributes?.find((a) =>
-            ["colour", "color"].includes(a.productAttribute?.attributeName?.toLowerCase().trim() || "")
-          )?.attributeValue;
-          const existingSizeVal = existingVariant.attributes?.find((a) =>
-            ["size"].includes(a.productAttribute?.attributeName?.toLowerCase().trim() || "")
-          )?.attributeValue;
-
-          const effectiveColor = color || existingColorVal || "";
-          const effectiveSize = size || existingSizeVal || "";
-
-          const isColorChanged = Boolean(
-            color && existingColorVal && color.toLowerCase().trim() !== existingColorVal.toLowerCase().trim()
-          );
-          const isSizeChanged = Boolean(
-            size && existingSizeVal && size.toLowerCase().trim() !== existingSizeVal.toLowerCase().trim()
-          );
-
-          let targetSku = existingVariant.variantSku;
-
-          // If color or size changed, update variant SKU according to new color and size
-          if (isColorChanged || isSizeChanged || (color && !existingColorVal) || (size && !existingSizeVal)) {
-            let baseSku = product.masterSku || product.sku;
-
-            if (existingColorVal && existingSizeVal) {
-              const s1 = `-${existingColorVal}-${existingSizeVal}`.toLowerCase();
-              const s2 = `_${existingColorVal}_${existingSizeVal}`.toLowerCase();
-              if (existingVariant.variantSku.toLowerCase().endsWith(s1)) {
-                baseSku = existingVariant.variantSku.slice(0, -s1.length);
-              } else if (existingVariant.variantSku.toLowerCase().endsWith(s2)) {
-                baseSku = existingVariant.variantSku.slice(0, -s2.length);
-              }
-            } else if (existingSizeVal) {
-              const s1 = `-${existingSizeVal}`.toLowerCase();
-              if (existingVariant.variantSku.toLowerCase().endsWith(s1)) {
-                baseSku = existingVariant.variantSku.slice(0, -s1.length);
-              }
-            } else if (existingColorVal) {
-              const s1 = `-${existingColorVal}`.toLowerCase();
-              if (existingVariant.variantSku.toLowerCase().endsWith(s1)) {
-                baseSku = existingVariant.variantSku.slice(0, -s1.length);
-              }
-            }
-
-            if (!baseSku) {
-              baseSku = product.masterSku || product.sku || existingVariant.variantSku;
-            }
-
-            const skuParts = [];
-            if (effectiveColor) skuParts.push(effectiveColor);
-            if (effectiveSize) skuParts.push(effectiveSize);
-
-            targetSku = skuParts.length > 0 ? `${baseSku}-${skuParts.join("-")}` : baseSku;
-
-            // Ensure no duplicate variantSku collision within the same product
-            const duplicateVariant = await prisma.productVariant.findFirst({
-              where: {
-                productId: product.id,
-                variantSku: { equals: targetSku, mode: "insensitive" },
-                id: { not: existingVariant.id },
-              },
-            });
-
-            if (duplicateVariant) {
-              let counter = 1;
-              let candidate = `${targetSku}-${counter}`;
-              while (
-                await prisma.productVariant.findFirst({
-                  where: {
-                    productId: product.id,
-                    variantSku: { equals: candidate, mode: "insensitive" },
-                    id: { not: existingVariant.id },
-                  },
-                })
-              ) {
-                counter++;
-                candidate = `${targetSku}-${counter}`;
-              }
-              targetSku = candidate;
-            }
-          }
-
-          // Update variant fields (including variantSku if changed by color/size)
-          await prisma.productVariant.update({
-            where: { id: existingVariant.id },
-            data: {
-              variantSku: targetSku,
-              asin: asin || existingVariant.asin,
-              rackAddress: rackAddress || existingVariant.rackAddress,
-              isActive: true,
-            },
+        if (!existingVariant) {
+          notFoundSkus.push(variantSku);
+          errors.push({
+            row: rowNum + 1,
+            variantSku,
+            error: `Variant SKU "${variantSku}" (Row ${rowNum + 1}) was not found in the database and was skipped.`,
           });
-
-          // If variantSku changed, sync AsinImport references for the old SKU
-          if (targetSku !== existingVariant.variantSku) {
-            try {
-              await prisma.asinImport.updateMany({
-                where: {
-                  userId,
-                  sku: existingVariant.variantSku,
-                },
-                data: {
-                  sku: targetSku,
-                },
-              });
-            } catch (syncErr) {
-              console.error("Failed to update sku in AsinImport:", syncErr);
-            }
-          }
-
-          // Ensure Colour, Size, Gender attribute records exist on parent product
-          let colorAttr = product.attributes.find((a) =>
-            ["colour", "color"].includes(a.attributeName.toLowerCase().trim())
-          );
-          let sizeAttr = product.attributes.find((a) =>
-            ["size"].includes(a.attributeName.toLowerCase().trim())
-          );
-          let genderAttr = product.attributes.find((a) =>
-            ["gender"].includes(a.attributeName.toLowerCase().trim())
-          );
-
-          if (!colorAttr && color) {
-            colorAttr = await prisma.productAttribute.create({
-              data: { productId: product.id, attributeName: "Colour" },
-            });
-            product.attributes.push(colorAttr);
-          }
-          if (!sizeAttr && size) {
-            sizeAttr = await prisma.productAttribute.create({
-              data: { productId: product.id, attributeName: "Size" },
-            });
-            product.attributes.push(sizeAttr);
-          }
-          if (!genderAttr && gender) {
-            genderAttr = await prisma.productAttribute.create({
-              data: { productId: product.id, attributeName: "Gender" },
-            });
-            product.attributes.push(genderAttr);
-          }
-
-          // Link/update variant attributes
-          if (color && colorAttr) {
-            const hasCol = existingVariant.attributes.find(
-              (a) => a.productAttributeId === colorAttr.id
-            );
-            if (hasCol) {
-              await prisma.productVariantAttribute.update({
-                where: { id: hasCol.id },
-                data: { attributeValue: color },
-              });
-            } else {
-              await prisma.productVariantAttribute.create({
-                data: {
-                  productVariantId: existingVariant.id,
-                  productAttributeId: colorAttr.id,
-                  attributeValue: color,
-                },
-              });
-            }
-          }
-
-          if (size && sizeAttr) {
-            const hasSz = existingVariant.attributes.find(
-              (a) => a.productAttributeId === sizeAttr.id
-            );
-            if (hasSz) {
-              await prisma.productVariantAttribute.update({
-                where: { id: hasSz.id },
-                data: { attributeValue: size },
-              });
-            } else {
-              await prisma.productVariantAttribute.create({
-                data: {
-                  productVariantId: existingVariant.id,
-                  productAttributeId: sizeAttr.id,
-                  attributeValue: size,
-                },
-              });
-            }
-          }
-
-          if (gender && genderAttr) {
-            const hasG = existingVariant.attributes.find(
-              (a) => a.productAttributeId === genderAttr.id
-            );
-            if (hasG) {
-              await prisma.productVariantAttribute.update({
-                where: { id: hasG.id },
-                data: { attributeValue: gender },
-              });
-            } else {
-              await prisma.productVariantAttribute.create({
-                data: {
-                  productVariantId: existingVariant.id,
-                  productAttributeId: genderAttr.id,
-                  attributeValue: gender,
-                },
-              });
-            }
-          }
-
-          // Update parent product colors & sizeList
-          const existingColors = Array.isArray(product.colors) ? product.colors : [];
-          const updatedColors = color && !existingColors.includes(color)
-            ? [...existingColors, color]
-            : existingColors;
-
-          const existingSizes = product.sizeList
-            ? product.sizeList.split(",").map((s) => s.trim()).filter(Boolean)
-            : [];
-          const updatedSizes = size && !existingSizes.includes(size)
-            ? [...existingSizes, size]
-            : existingSizes;
-
-          await prisma.product.update({
-            where: { id: product.id },
-            data: {
-              colors: updatedColors,
-              sizeList: updatedSizes.join(", "),
-              gender: product.gender || gender || null,
-              rackAddress: product.rackAddress || rackAddress || null,
-              asin: product.asin || asin || null,
-            },
-          });
-
-          // Sync ASIN to AsinImport
-          if (asin && asin.trim()) {
-            try {
-              await upsertAsinImport({
-                userId,
-                asin: asin.trim(),
-                sku: targetSku,
-                rackAddress: rackAddress || existingVariant.rackAddress || null,
-                generateBarcode: "No",
-              });
-            } catch (asinErr) {
-              console.error("Failed to sync imported ASIN to AsinImport:", asinErr);
-            }
-          }
-
-          affectedProducts.set(product.id, product);
           continue;
         }
 
-        // Step 3: If not matching, identify variant SKU common things (its base SKU / master SKU)
-        let commonSku = "";
-        if (explicitMasterSku && explicitMasterSku.toLowerCase() !== variantSku.toLowerCase()) {
-          commonSku = explicitMasterSku;
-        }
+        const product = existingVariant.product;
 
-        if (!commonSku) {
-          if (
-            color &&
-            size &&
-            variantSku.toLowerCase().endsWith(`-${color.toLowerCase()}-${size.toLowerCase()}`)
-          ) {
-            commonSku = variantSku.slice(0, -(color.length + size.length + 2));
-          } else if (
-            color &&
-            size &&
-            variantSku.toLowerCase().endsWith(`_${color.toLowerCase()}_${size.toLowerCase()}`)
-          ) {
-            commonSku = variantSku.slice(0, -(color.length + size.length + 2));
-          } else if (size && variantSku.toLowerCase().endsWith(`-${size.toLowerCase()}`)) {
-            commonSku = variantSku.slice(0, -(size.length + 1));
-          } else if (color && variantSku.toLowerCase().endsWith(`-${color.toLowerCase()}`)) {
-            commonSku = variantSku.slice(0, -(color.length + 1));
-          } else if (size && variantSku.toLowerCase().endsWith(`_${size.toLowerCase()}`)) {
-            commonSku = variantSku.slice(0, -(size.length + 1));
-          } else if (color && variantSku.toLowerCase().endsWith(`_${color.toLowerCase()}`)) {
-            commonSku = variantSku.slice(0, -(color.length + 1));
-          }
-        }
+        // 1. Update Variant fields
+        const variantUpdateData = {};
+        if (asin) variantUpdateData.asin = asin;
+        if (myntraSku) variantUpdateData.myntraSku = myntraSku;
+        if (fsnCode) variantUpdateData.fsnCode = fsnCode;
+        if (rackAddress) variantUpdateData.rackAddress = rackAddress;
+        variantUpdateData.isActive = true;
 
-        if (!commonSku) {
-          const vLower = variantSku.toLowerCase();
-          for (const ep of existingProductsList) {
-            const mSku = (ep.masterSku || "").toLowerCase();
-            const bSku = (ep.sku || "").toLowerCase();
-            if (mSku && (vLower.startsWith(mSku + "-") || vLower.startsWith(mSku + "_"))) {
-              commonSku = ep.masterSku;
-              break;
-            }
-            if (bSku && (vLower.startsWith(bSku + "-") || vLower.startsWith(bSku + "_"))) {
-              commonSku = ep.sku;
-              break;
-            }
-          }
-        }
-
-        if (!commonSku) {
-          if (variantSku.includes("-")) {
-            const parts = variantSku.split("-");
-            if (parts.length > 2) {
-              commonSku = parts.slice(0, -1).join("-");
-            } else {
-              commonSku = parts[0];
-            }
-          } else if (variantSku.includes("_")) {
-            const parts = variantSku.split("_");
-            if (parts.length > 2) {
-              commonSku = parts.slice(0, -1).join("_");
-            } else {
-              commonSku = parts[0];
-            }
-          } else {
-            commonSku = variantSku;
-          }
-        }
-
-        if (!nonMatchingGroups.has(commonSku)) {
-          nonMatchingGroups.set(commonSku, {
-            commonSku,
-            rows: [],
+        if (Object.keys(variantUpdateData).length > 0) {
+          await prisma.productVariant.update({
+            where: { id: existingVariant.id },
+            data: variantUpdateData,
           });
         }
 
-        nonMatchingGroups.get(commonSku).rows.push({
-          rowNum,
-          variantSku,
-          asin,
-          rackAddress,
-          color,
-          size,
-          gender,
-        });
-      } catch (rowErr) {
-        errors.push({ row: rowNum, variantSku, error: rowErr.message });
-      }
-    }
-
-    // Process non-matching groups: auto-fetch master SKU and other details or create new product
-    for (const [commonSku, group] of nonMatchingGroups.entries()) {
-      try {
-        const uniqueColors = Array.from(
-          new Set(group.rows.map((r) => r.color).filter(Boolean))
-        );
-        const uniqueSizes = Array.from(
-          new Set(group.rows.map((r) => r.size).filter(Boolean))
-        );
-        const groupGender = group.rows.find((r) => r.gender)?.gender || "";
-        const groupRack = group.rows.find((r) => r.rackAddress)?.rackAddress || "";
-        const groupAsin = group.rows.find((r) => r.asin)?.asin || "";
-
-        // Check if product with this common SKU exists in DB
-        let product = await prisma.product.findFirst({
-          where: {
-            userId,
-            OR: [
-              { masterSku: { equals: commonSku, mode: "insensitive" } },
-              { sku: { equals: commonSku, mode: "insensitive" } },
-            ],
-          },
-          include: {
-            attributes: true,
-            variants: true,
-          },
-        });
-
-        if (product) {
-          // Auto-fetch existing master product details and update colors & sizes
-          const existingColors = Array.isArray(product.colors) ? product.colors : [];
-          const mergedColors = Array.from(new Set([...existingColors, ...uniqueColors]));
-          const existingSizes = product.sizeList
-            ? product.sizeList.split(",").map((s) => s.trim()).filter(Boolean)
-            : [];
-          const mergedSizes = Array.from(new Set([...existingSizes, ...uniqueSizes]));
-
-          await prisma.product.update({
-            where: { id: product.id },
-            data: {
-              colors: mergedColors,
-              sizeList: mergedSizes.join(", "),
-              gender: product.gender || groupGender || null,
-              rackAddress: product.rackAddress || groupRack || null,
-              asin: product.asin || groupAsin || null,
-            },
-          });
-
-          product = await prisma.product.findUnique({
-            where: { id: product.id },
-            include: {
-              attributes: true,
-              variants: true,
-            },
-          });
-        } else {
-          // Create new product with this common SKU containing variant details
-          const initialAttrs = [];
-          if (uniqueColors.length > 0) initialAttrs.push({ attributeName: "Colour" });
-          if (uniqueSizes.length > 0) initialAttrs.push({ attributeName: "Size" });
-          if (groupGender) initialAttrs.push({ attributeName: "Gender" });
-
-          let candidateProductName = commonSku;
-          const existingWithName = await prisma.product.findFirst({
-            where: { userId, productName: candidateProductName },
-          });
-          if (existingWithName) {
-            candidateProductName = `${commonSku}-${Date.now().toString().slice(-4)}`;
-          }
-
-          const created = await createProduct({
-            productName: candidateProductName,
-            masterSku: commonSku,
-            sku: commonSku,
-            brand: "No Brand",
-            category: "General",
-            gender: groupGender || null,
-            rackAddress: groupRack || null,
-            asin: groupAsin || null,
-            generateBarcode: "No",
-            colors: uniqueColors,
-            sizeList: uniqueSizes.join(", "),
-            isActive: true,
-            userId,
-            attributes: initialAttrs,
-          });
-
-          product = await prisma.product.findUnique({
-            where: { id: created.id },
-            include: {
-              attributes: true,
-              variants: true,
-            },
-          });
-
-          existingProductsList.push({
-            id: product.id,
-            masterSku: product.masterSku,
-            sku: product.sku,
-            productName: product.productName,
-          });
-        }
-
-        // Ensure Colour, Size, Gender attribute records exist in ProductAttribute
+        // 2. Ensure parent product has attributes (Colour, Size, Gender)
         let colorAttr = product.attributes.find((a) =>
           ["colour", "color"].includes(a.attributeName.toLowerCase().trim())
         );
@@ -893,256 +595,299 @@ export const importProductsFromExcelService = async (userId, fileBuffer) => {
           ["gender"].includes(a.attributeName.toLowerCase().trim())
         );
 
-        if (!colorAttr && uniqueColors.length > 0) {
+        if (!colorAttr && color) {
           colorAttr = await prisma.productAttribute.create({
             data: { productId: product.id, attributeName: "Colour" },
           });
           product.attributes.push(colorAttr);
         }
-        if (!sizeAttr && uniqueSizes.length > 0) {
+        if (!sizeAttr && size) {
           sizeAttr = await prisma.productAttribute.create({
             data: { productId: product.id, attributeName: "Size" },
           });
           product.attributes.push(sizeAttr);
         }
-        if (!genderAttr && groupGender) {
+        if (!genderAttr && gender) {
           genderAttr = await prisma.productAttribute.create({
             data: { productId: product.id, attributeName: "Gender" },
           });
           product.attributes.push(genderAttr);
         }
 
-        // Upsert each variant for this product
-        for (const varRow of group.rows) {
-          let effectiveVariantSku = varRow.variantSku;
-          const skuParts = [];
-          if (varRow.color) skuParts.push(varRow.color);
-          if (varRow.size) skuParts.push(varRow.size);
-
-          if (skuParts.length > 0) {
-            const expectedSuffix = skuParts.join("-").toLowerCase();
-            if (
-              effectiveVariantSku.toLowerCase() === commonSku.toLowerCase() ||
-              !effectiveVariantSku.toLowerCase().endsWith(expectedSuffix)
-            ) {
-              effectiveVariantSku = `${commonSku}-${skuParts.join("-")}`;
-            }
-          }
-
-          let variant = await prisma.productVariant.findFirst({
-            where: {
-              productId: product.id,
-              variantSku: { equals: effectiveVariantSku, mode: "insensitive" },
-            },
-            include: { attributes: true },
-          });
-
-          if (!variant) {
-            variant = await prisma.productVariant.create({
-              data: {
-                productId: product.id,
-                variantSku: effectiveVariantSku,
-                asin: varRow.asin || null,
-                rackAddress: varRow.rackAddress || null,
-                isActive: true,
-              },
+        // 3. Update variant attribute values
+        if (color && colorAttr) {
+          const hasCol = existingVariant.attributes.find(
+            (a) =>
+              a.productAttributeId === colorAttr.id ||
+              ["colour", "color"].includes(
+                a.productAttribute?.attributeName?.toLowerCase().trim() || ""
+              )
+          );
+          if (hasCol) {
+            await prisma.productVariantAttribute.update({
+              where: { id: hasCol.id },
+              data: { attributeValue: color },
             });
           } else {
-            variant = await prisma.productVariant.update({
-              where: { id: variant.id },
+            await prisma.productVariantAttribute.create({
               data: {
-                asin: varRow.asin || variant.asin,
-                rackAddress: varRow.rackAddress || variant.rackAddress,
-                isActive: true,
+                productVariantId: existingVariant.id,
+                productAttributeId: colorAttr.id,
+                attributeValue: color,
               },
             });
           }
+        }
 
-          // Link variant attributes
-          if (varRow.color && colorAttr) {
-            const hasCol = await prisma.productVariantAttribute.findFirst({
-              where: { productVariantId: variant.id, productAttributeId: colorAttr.id },
+        if (size && sizeAttr) {
+          const hasSz = existingVariant.attributes.find(
+            (a) =>
+              a.productAttributeId === sizeAttr.id ||
+              ["size"].includes(
+                a.productAttribute?.attributeName?.toLowerCase().trim() || ""
+              )
+          );
+          if (hasSz) {
+            await prisma.productVariantAttribute.update({
+              where: { id: hasSz.id },
+              data: { attributeValue: size },
             });
-            if (hasCol) {
-              await prisma.productVariantAttribute.update({
-                where: { id: hasCol.id },
-                data: { attributeValue: varRow.color },
-              });
-            } else {
-              await prisma.productVariantAttribute.create({
-                data: {
-                  productVariantId: variant.id,
-                  productAttributeId: colorAttr.id,
-                  attributeValue: varRow.color,
-                },
-              });
-            }
+          } else {
+            await prisma.productVariantAttribute.create({
+              data: {
+                productVariantId: existingVariant.id,
+                productAttributeId: sizeAttr.id,
+                attributeValue: size,
+              },
+            });
+          }
+        }
+
+        if (gender && genderAttr) {
+          const hasG = existingVariant.attributes.find(
+            (a) =>
+              a.productAttributeId === genderAttr.id ||
+              ["gender"].includes(
+                a.productAttribute?.attributeName?.toLowerCase().trim() || ""
+              )
+          );
+          if (hasG) {
+            await prisma.productVariantAttribute.update({
+              where: { id: hasG.id },
+              data: { attributeValue: gender },
+            });
+          } else {
+            await prisma.productVariantAttribute.create({
+              data: {
+                productVariantId: existingVariant.id,
+                productAttributeId: genderAttr.id,
+                attributeValue: gender,
+              },
+            });
+          }
+        }
+
+        // 4. Update any additional dynamic attribute columns (e.g. Material, Storage, etc.)
+        for (const dynCol of dynamicAttributeCols) {
+          const val = String(row[dynCol.colIndex] || "").trim();
+          if (!val) continue;
+
+          let pAttr = product.attributes.find(
+            (a) =>
+              a.attributeName.toLowerCase().trim() ===
+              dynCol.headerName.toLowerCase().trim()
+          );
+          if (!pAttr) {
+            pAttr = await prisma.productAttribute.create({
+              data: {
+                productId: product.id,
+                attributeName: dynCol.headerName,
+              },
+            });
+            product.attributes.push(pAttr);
           }
 
-          if (varRow.size && sizeAttr) {
-            const hasSz = await prisma.productVariantAttribute.findFirst({
-              where: { productVariantId: variant.id, productAttributeId: sizeAttr.id },
-            });
-            if (hasSz) {
-              await prisma.productVariantAttribute.update({
-                where: { id: hasSz.id },
-                data: { attributeValue: varRow.size },
-              });
-            } else {
-              await prisma.productVariantAttribute.create({
-                data: {
-                  productVariantId: variant.id,
-                  productAttributeId: sizeAttr.id,
-                  attributeValue: varRow.size,
-                },
-              });
-            }
-          }
+          const hasAttr = existingVariant.attributes.find(
+            (a) =>
+              a.productAttributeId === pAttr.id ||
+              a.productAttribute?.attributeName?.toLowerCase().trim() ===
+                dynCol.headerName.toLowerCase().trim()
+          );
 
-          if (varRow.gender && genderAttr) {
-            const hasG = await prisma.productVariantAttribute.findFirst({
-              where: { productVariantId: variant.id, productAttributeId: genderAttr.id },
+          if (hasAttr) {
+            await prisma.productVariantAttribute.update({
+              where: { id: hasAttr.id },
+              data: { attributeValue: val },
             });
-            if (hasG) {
-              await prisma.productVariantAttribute.update({
-                where: { id: hasG.id },
-                data: { attributeValue: varRow.gender },
-              });
-            } else {
-              await prisma.productVariantAttribute.create({
-                data: {
-                  productVariantId: variant.id,
-                  productAttributeId: genderAttr.id,
-                  attributeValue: varRow.gender,
-                },
-              });
-            }
+          } else {
+            await prisma.productVariantAttribute.create({
+              data: {
+                productVariantId: existingVariant.id,
+                productAttributeId: pAttr.id,
+                attributeValue: val,
+              },
+            });
           }
+        }
 
-          if (varRow.asin && varRow.asin.trim()) {
-            try {
-              await upsertAsinImport({
-                userId,
-                asin: varRow.asin.trim(),
-                sku: effectiveVariantSku,
-                rackAddress: varRow.rackAddress || null,
-                generateBarcode: "No",
-              });
-            } catch (asinErr) {
-              console.error("Failed to sync imported ASIN to AsinImport:", asinErr);
-            }
+        // 5. Update parent product summary fields
+        const existingColors = Array.isArray(product.colors) ? product.colors : [];
+        const updatedColors = color && !existingColors.includes(color)
+          ? [...existingColors, color]
+          : existingColors;
+
+        const existingSizes = product.sizeList
+          ? product.sizeList.split(",").map((s) => s.trim()).filter(Boolean)
+          : [];
+        const updatedSizes = size && !existingSizes.includes(size)
+          ? [...existingSizes, size]
+          : existingSizes;
+
+        const productDataToUpdate = {
+          colors: updatedColors,
+          sizeList: updatedSizes.join(", "),
+          gender: gender || product.gender || null,
+          rackAddress: rackAddress || product.rackAddress || null,
+          asin: asin || product.asin || null,
+          myntraSku: myntraSku || product.myntraSku || null,
+          fsnCode: fsnCode || product.fsnCode || null,
+        };
+
+        await prisma.product.update({
+          where: { id: product.id },
+          data: productDataToUpdate,
+        });
+
+        // 5. Sync ASIN to AsinImport if present
+        if (asin && asin.trim()) {
+          try {
+            await upsertAsinImport({
+              userId,
+              asin: asin.trim(),
+              sku: existingVariant.variantSku,
+              rackAddress: rackAddress || existingVariant.rackAddress || null,
+              generateBarcode: "No",
+            });
+          } catch (asinErr) {
+            console.error("Failed to sync imported ASIN to AsinImport:", asinErr);
           }
         }
 
         affectedProducts.set(product.id, product);
-      } catch (grpErr) {
-        errors.push({ masterSku: commonSku, error: grpErr.message });
+        updatedCount++;
+      } catch (rowErr) {
+        errors.push({ row: rowNum + 1, variantSku, error: rowErr.message });
       }
     }
 
     const allProducts = Array.from(affectedProducts.values());
+
+    let message = "";
+    if (updatedCount > 0 && errors.length > 0) {
+      const sampleSkus =
+        notFoundSkus.slice(0, 3).join(", ") +
+        (notFoundSkus.length > 3 ? ` and ${notFoundSkus.length - 3} more` : "");
+      message = `Updated ${updatedCount} variant(s). ${errors.length} variant SKU(s) were not found in database and skipped: [${sampleSkus}].`;
+    } else if (updatedCount > 0) {
+      message = `Successfully updated ${updatedCount} variant(s) across ${allProducts.length} product(s).`;
+    } else if (errors.length > 0) {
+      const sampleSkus =
+        notFoundSkus.slice(0, 3).join(", ") +
+        (notFoundSkus.length > 3 ? ` and ${notFoundSkus.length - 3} more` : "");
+      message = `0 variants updated. None of the ${errors.length} variant SKU(s) exist in database: [${sampleSkus}]. Only existing variant SKUs can be updated.`;
+    } else {
+      message = "No variant records were updated.";
+    }
+
     return {
-      importedCount: allProducts.length,
+      importedCount: updatedCount,
+      updatedCount,
+      notFoundCount: notFoundSkus.length,
+      notFoundSkus,
       products: allProducts,
       errors,
+      message,
     };
   }
 
   // --------------------------------------------------------------------------
-  // BRANCH B: Classic Product Sheet Format (Product Name, Master SKU, ...)
+  // BRANCH B: Classic Product Sheet Format (Only updates existing products)
   // --------------------------------------------------------------------------
+  const updatedProducts = [];
+  const dataStartRow = headerRowIndex + 1;
 
-  for (let rowNum = 1; rowNum < rows.length; rowNum++) {
+  for (let rowNum = dataStartRow; rowNum < rows.length; rowNum++) {
     const row = rows[rowNum];
+    if (!Array.isArray(row) || row.length === 0) continue;
 
-    const productName = getColValue(row, ["productname", "product", "title", "name"]);
-    const masterSku = getColValue(row, ["mastersku", "sku", "masterskucode"]);
+    const masterSkuRaw = colIndexMasterSku !== -1 ? row[colIndexMasterSku] : "";
+    const productNameRaw = colIndexProductName !== -1 ? row[colIndexProductName] : "";
+    const masterSku = String(masterSkuRaw || productNameRaw || "").trim();
 
-    if (!productName && !masterSku) {
-      continue; // skip empty rows
-    }
-
-    const brand = getColValue(row, ["brand", "brandname"]) || "Generic";
-    const category = getColValue(row, ["category", "categoryname"]) || "General";
-    const subCategory = getColValue(row, ["subcategory", "subcategoryname"]) || "";
-    const description = getColValue(row, ["description", "desc"]) || "";
-    const asin = getColValue(row, ["asin"]) || "";
-    const rackAddress = getColValue(row, ["rackaddress", "rack", "racklocation"]) || "";
-
-    const mrpRaw = getColValue(row, ["mrp", "price"]);
-    const mrp = mrpRaw ? parseFloat(String(mrpRaw).replace(/[\s,]/g, "")) : undefined;
-
-    const hsnCode = getColValue(row, ["hsncode", "hsn"]) || "";
-
-    const gstRaw = getColValue(row, ["gstrate", "gstpercent", "gst", "gst"]);
-    const gstRate = gstRaw ? parseFloat(gstRaw.replace("%", "")) : undefined;
-
-    const generateBarcodeRaw = getColValue(row, ["generatebarcode", "genratebarcode", "barcode", "generate_barcode"]);
-    const isGenYes = generateBarcodeRaw && ["yes", "y", "true", "1"].includes(generateBarcodeRaw.toLowerCase());
-    const generateBarcode = isGenYes ? "Yes" : "No";
-
-    const finalProductName = productName || `Product ${masterSku}`;
-    const finalMasterSku = masterSku || `SKU-${Date.now()}-${rowNum}`;
+    if (!masterSku) continue;
 
     try {
-      // Check duplicate ASIN
-      if (asin) {
-        const existingAsin = await findProductByAsin(asin, userId);
-        if (existingAsin) {
-          continue;
-        }
-      }
-
-      const newProduct = await createProduct({
-        productName: finalProductName,
-        masterSku: finalMasterSku,
-        brand,
-        category,
-        subCategory: subCategory || null,
-        description: description || null,
-        asin: asin || null,
-        rackAddress: rackAddress || null,
-        generateBarcode,
-        mrp: isNaN(mrp) ? null : mrp,
-        hsnCode: hsnCode || null,
-        gstRate: isNaN(gstRate) ? null : gstRate,
-        isActive: true,
-        userId,
-        attributes: [],
+      const existingProduct = await prisma.product.findFirst({
+        where: {
+          userId,
+          OR: [
+            { masterSku: { equals: masterSku, mode: "insensitive" } },
+            { sku: { equals: masterSku, mode: "insensitive" } },
+          ],
+        },
       });
 
-      createdProducts.push(newProduct);
+      if (!existingProduct) {
+        errors.push({
+          row: rowNum + 1,
+          masterSku,
+          error: `Product with SKU "${masterSku}" does not exist in database. Skipped (no new products are added).`,
+        });
+        continue;
+      }
 
-      if (asin && asin.trim()) {
-        try {
-          await upsertAsinImport({
-            userId,
-            asin: asin.trim(),
-            sku: finalMasterSku,
-            rackAddress: rackAddress || null,
-            generateBarcode,
-          });
-        } catch (asinErr) {
-          console.error("Failed to sync imported ASIN to AsinImport:", asinErr);
-        }
+      const brand = colIndexVariantSku !== -1 ? "" : "";
+      const updateData = {};
+      if (colIndexRack !== -1 && row[colIndexRack]) updateData.rackAddress = String(row[colIndexRack]).trim();
+      if (colIndexAsin !== -1 && row[colIndexAsin]) updateData.asin = String(row[colIndexAsin]).trim();
+      if (colIndexMyntraSku !== -1 && row[colIndexMyntraSku]) updateData.myntraSku = String(row[colIndexMyntraSku]).trim();
+      if (colIndexFsnCode !== -1 && row[colIndexFsnCode]) updateData.fsnCode = String(row[colIndexFsnCode]).trim();
+
+      if (Object.keys(updateData).length > 0) {
+        const updated = await prisma.product.update({
+          where: { id: existingProduct.id },
+          data: updateData,
+        });
+        updatedProducts.push(updated);
+        updatedCount++;
       }
     } catch (err) {
       errors.push({ row: rowNum + 1, error: err.message });
     }
   }
 
+  let message = "";
+  if (updatedCount > 0 && errors.length > 0) {
+    message = `Updated ${updatedCount} existing product(s). ${errors.length} row(s) were not found and skipped.`;
+  } else if (updatedCount > 0) {
+    message = `Successfully updated ${updatedCount} existing product(s).`;
+  } else if (errors.length > 0) {
+    message = `0 products updated. ${errors.length} row(s) were skipped because they do not exist in database.`;
+  } else {
+    message = "No records to update.";
+  }
+
   return {
-    importedCount: createdProducts.length,
-    products: createdProducts,
+    importedCount: updatedCount,
+    updatedCount,
+    notFoundCount: errors.length,
+    products: updatedProducts,
     errors,
+    message,
   };
 };
 
 
-
-// ======================================================
-// Auto Persist Dropdown Options Helper
-// ======================================================
 
 export const autoPersistProductOptions = async (userId, data) => {
   try {
@@ -1268,44 +1013,74 @@ const DEFAULT_WORKER_PROCESSES = [
 
 export const getDropdownOptionsService = async (userId) => {
   let [userSaved, parties, existingProducts, variantColorAttrs] = await Promise.all([
-    getDropdownOptionsByUserId(userId),
-    getPartiesByUserId(userId),
-    prisma.product.findMany({
-      where: { userId },
-      select: {
-        category: true,
-        brand: true,
-        unit: true,
-        gender: true,
-        referenceParty: true,
-        rackAddress: true,
-        availability: true,
-        colors: true,
-        gstRate: true,
-      },
+    getAllMasterDropdownOptionsService(userId).catch((err) => {
+      console.error("Error fetching master dropdown options:", err);
+      return getDropdownOptionsByUserId(userId).catch(() => []);
     }),
-    prisma.productVariantAttribute.findMany({
-      where: {
-        productVariant: {
-          product: { userId },
+    getPartiesByUserId(userId).catch((err) => {
+      console.error("Error fetching parties:", err);
+      return [];
+    }),
+    prisma.product
+      .findMany({
+        where: { userId },
+        select: {
+          category: true,
+          brand: true,
+          unit: true,
+          gender: true,
+          referenceParty: true,
+          rackAddress: true,
+          availability: true,
+          colors: true,
+          gstRate: true,
         },
-        productAttribute: {
-          attributeName: {
-            in: ["Colour", "colour", "Color", "color"],
+      })
+      .catch((err) => {
+        console.error("Error fetching existing products:", err);
+        return [];
+      }),
+    prisma.productVariantAttribute
+      .findMany({
+        where: {
+          productVariant: {
+            product: { userId },
+          },
+          productAttribute: {
+            attributeName: {
+              in: ["Colour", "colour", "Color", "color"],
+            },
           },
         },
-      },
-      select: {
-        attributeValue: true,
-      },
-    }).catch(() => []),
+        select: {
+          attributeValue: true,
+        },
+      })
+      .catch(() => []),
   ]);
 
   const variantColors = (variantColorAttrs || [])
     .flatMap((va) => (va.attributeValue ? va.attributeValue.split(",").map((s) => s.trim()) : []))
     .filter(Boolean);
 
-  const productColors = existingProducts.flatMap((p) => p.colors || []).filter(Boolean);
+  const productColors = (existingProducts || []).flatMap((p) => p.colors || []).filter(Boolean);
+
+  // Build disabled lookup set to ensure deactivated options never leak through distinct lists
+  const disabledMap = new Map();
+  (userSaved || []).forEach((o) => {
+    if (o.isActive === false || o.label === "__DELETED__") {
+      const f = o.field.toLowerCase();
+      if (!disabledMap.has(f)) disabledMap.set(f, new Set());
+      if (o.value) disabledMap.get(f).add(o.value.trim().toLowerCase());
+      if (o.label && o.label !== "__DELETED__") disabledMap.get(f).add(o.label.trim().toLowerCase());
+    }
+  });
+
+  const isNotDisabled = (field, val) => {
+    if (val === null || val === undefined) return false;
+    const disabledSet = disabledMap.get(field.toLowerCase());
+    return !disabledSet || !disabledSet.has(String(val).trim().toLowerCase());
+  };
 
   // Auto-seed default business types, trade categories, account heads & employee fields into DB if user doesn't have them yet
   const defaultsToCheck = [
@@ -1337,24 +1112,46 @@ export const getDropdownOptionsService = async (userId) => {
   }
 
   return {
-    savedOptions: userSaved,
-    parties: parties.map((p) => p.partyName).filter(Boolean),
+    savedOptions: userSaved.filter(
+      (o) => !(o.field.toLowerCase() === "gender" && ["male", "female"].includes(String(o.value).trim().toLowerCase()))
+    ),
+    parties: parties.map((p) => p.partyName).filter((p) => Boolean(p) && isNotDisabled("referenceparty", p)),
     distinctFromProducts: {
-      categories: [...new Set(existingProducts.map((p) => p.category).filter(Boolean))],
-      brands: [...new Set(existingProducts.map((p) => p.brand).filter(Boolean))],
-      units: [...new Set(existingProducts.map((p) => p.unit).filter(Boolean))],
-      genders: [...new Set(existingProducts.map((p) => p.gender).filter(Boolean))],
-      referenceParties: [...new Set(existingProducts.map((p) => p.referenceParty).filter(Boolean))],
-      rackAddresses: [...new Set(existingProducts.map((p) => p.rackAddress).filter(Boolean))],
-      availabilities: [...new Set(existingProducts.map((p) => p.availability).filter(Boolean))],
-      colors: [...new Set([...productColors, ...variantColors])],
-      gstRates: [...new Set(existingProducts.map((p) => p.gstRate).filter((g) => g !== null && g !== undefined))],
+      categories: [...new Set(existingProducts.map((p) => p.category).filter((c) => Boolean(c) && isNotDisabled("category", c)))],
+      brands: [...new Set(existingProducts.map((p) => p.brand).filter((b) => Boolean(b) && isNotDisabled("brand", b)))],
+      units: [...new Set(existingProducts.map((p) => p.unit).filter((u) => Boolean(u) && isNotDisabled("unit", u)))],
+      genders: [
+        ...new Set(
+          existingProducts
+            .map((p) => p.gender)
+            .filter((g) => Boolean(g) && isNotDisabled("gender", g) && !["male", "female"].includes(g.toLowerCase()))
+        ),
+      ],
+      referenceParties: [...new Set(existingProducts.map((p) => p.referenceParty).filter((r) => Boolean(r) && isNotDisabled("referenceparty", r)))],
+      rackAddresses: [...new Set(existingProducts.map((p) => p.rackAddress).filter((ra) => Boolean(ra) && isNotDisabled("rackaddress", ra)))],
+      availabilities: [...new Set(existingProducts.map((p) => p.availability).filter((a) => Boolean(a) && isNotDisabled("availability", a)))],
+      colors: [...new Set([...productColors, ...variantColors].filter((c) => Boolean(c) && isNotDisabled("color", c)))],
+      gstRates: [...new Set(existingProducts.map((p) => p.gstRate).filter((g) => g !== null && g !== undefined && isNotDisabled("gstrate", g)))],
     },
   };
 };
 
 export const saveDropdownOptionService = async (userId, data) => {
-  return await upsertDropdownOption(userId, data);
+  const rawField = data?.field ? String(data.field).trim().toLowerCase() : "";
+  let targetField = rawField;
+  if (rawField === "productcategory" || rawField === "category") {
+    targetField = "category";
+  } else if (rawField === "productsubcategory" || rawField === "subcategory") {
+    targetField = "subcategory";
+  } else if (rawField === "colour" || rawField === "colours") {
+    targetField = "color";
+  } else {
+    targetField = normalizeFieldKey(rawField);
+  }
+  if (targetField) {
+    await ensureFieldDefaultsInDb(userId, targetField);
+  }
+  return await upsertDropdownOption(userId, { ...data, field: targetField });
 };
 
 

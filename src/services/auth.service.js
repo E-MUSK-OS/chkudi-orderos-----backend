@@ -77,7 +77,34 @@ export const signupService = async ({
       fullName: user.fullName,
       username: user.username,
       email: user.email,
+      phone: user.phone || null,
+      avatar: user.avatar || null,
+      dob: user.dob || null,
+      gender: user.gender || null,
+      departments: user.departments || user.userMapping?.departments || [],
+      companies: user.companies || user.userMapping?.companies || [],
       role: user.role,
+      rights: user.rights || null,
+      allowedPages:
+        user.allowedPages && user.allowedPages.length > 0
+          ? user.allowedPages
+          : user.userMapping?.allowedPages || [],
+      userMapping: user.userMapping
+        ? {
+            ...user.userMapping,
+            allowedPages:
+              user.allowedPages && user.allowedPages.length > 0
+                ? user.allowedPages
+                : user.userMapping?.allowedPages || [],
+            superAdmin:
+              user.userMapping.superAdmin ||
+              (user.userMapping.admin?.role === "SUPERADMIN" ? user.userMapping.admin : null),
+            admin:
+              user.role === "ADMIN" && user.userMapping.admin?.role === "SUPERADMIN"
+                ? null
+                : user.userMapping.admin,
+          }
+        : null,
     },
     accessToken,
     refreshToken,
@@ -128,7 +155,34 @@ export const loginService = async ({ email, password }) => {
       fullName: user.fullName,
       username: user.username,
       email: user.email,
+      phone: user.phone || null,
+      avatar: user.avatar || null,
+      dob: user.dob || null,
+      gender: user.gender || null,
+      departments: user.departments || user.userMapping?.departments || [],
+      companies: user.companies || user.userMapping?.companies || [],
       role: user.role,
+      rights: user.rights || null,
+      allowedPages:
+        user.allowedPages && user.allowedPages.length > 0
+          ? user.allowedPages
+          : user.userMapping?.allowedPages || [],
+      userMapping: user.userMapping
+        ? {
+            ...user.userMapping,
+            allowedPages:
+              user.allowedPages && user.allowedPages.length > 0
+                ? user.allowedPages
+                : user.userMapping?.allowedPages || [],
+            superAdmin:
+              user.userMapping.superAdmin ||
+              (user.userMapping.admin?.role === "SUPERADMIN" ? user.userMapping.admin : null),
+            admin:
+              user.role === "ADMIN" && user.userMapping.admin?.role === "SUPERADMIN"
+                ? null
+                : user.userMapping.admin,
+          }
+        : null,
     },
     accessToken,
     refreshToken,
@@ -201,7 +255,28 @@ export const getMeService = async (userId) => {
     throw new Error("User not found");
   }
 
-  return user;
+  const allowed =
+    user.allowedPages && user.allowedPages.length > 0
+      ? user.allowedPages
+      : user.userMapping?.allowedPages || [];
+
+  return {
+    ...user,
+    allowedPages: allowed,
+    userMapping: user.userMapping
+      ? {
+          ...user.userMapping,
+          allowedPages: allowed,
+          superAdmin:
+            user.userMapping.superAdmin ||
+            (user.userMapping.admin?.role === "SUPERADMIN" ? user.userMapping.admin : null),
+          admin:
+            user.role === "ADMIN" && user.userMapping.admin?.role === "SUPERADMIN"
+              ? null
+              : user.userMapping.admin,
+        }
+      : null,
+  };
 };
 
 export const sendOtpService = async ({ email, purpose }) => {

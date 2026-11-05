@@ -33,11 +33,13 @@ import purchaseChallanRoutes from "./purchaseChallan.routes.js";
 import webstoreRoutes from "./webstore.routes.js";
 import salesInvoiceRoutes from "./salesInvoice.routes.js";
 import purchaseInvoiceRoutes from "./purchaseInvoice.routes.js";
+import userManagementRoutes from "./userManagement.routes.js";
 import companyRoutes from "./company.routes.js";
 import employeeRoutes from "./employee.routes.js";
 import salariedEmployeeRoutes from "./salariedEmployee.routes.js";
 import clientConfigurationRoutes from "./clientConfiguration.routes.js";
 import requestedPoRoutes from "./requestedPo.routes.js";
+import settingMastersRoutes from "./settingMasters.routes.js";
 
 const router = Router();
 
@@ -79,10 +81,12 @@ router.use("/purchase-challans", purchaseChallanRoutes);
 router.use("/webstores", webstoreRoutes);
 router.use("/sales-invoices", salesInvoiceRoutes);
 router.use("/purchase-invoices", purchaseInvoiceRoutes);
+router.use("/manage-users", userManagementRoutes);
 router.use("/companies", companyRoutes);
 router.use("/employees", employeeRoutes);
 router.use("/salaried-employees", salariedEmployeeRoutes);
 router.use("/client-configuration", clientConfigurationRoutes);
 router.use("/requested-pos", requestedPoRoutes);
+router.use("/setting-masters", settingMastersRoutes);
 
 export default router;

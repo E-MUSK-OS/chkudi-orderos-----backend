@@ -1,6 +1,7 @@
 import { verifyAccessToken } from "../utils/jwt.js";
 import { findUserById } from "../repositories/auth.repository.js";
 import { findOperatorById } from "../repositories/operatorAuth.repository.js";
+import { resolveWorkspaceSuperAdminId } from "../utils/workspace.js";
 
 /**
  * Unified authentication middleware for VMS endpoints.
@@ -44,9 +45,22 @@ export const verifyVmsAuth = async (req, res, next) => {
         });
       }
 
+      const operatorWorkspaceId = resolveWorkspaceSuperAdminId(operator.user) || operator.userId;
+
       req.operator = operator;
-      req.user = operator.user;
-      req.userId = operator.userId;
+      req.workspaceId = operatorWorkspaceId;
+      req.userId = operatorWorkspaceId;
+      req.actualUserId = operator.id;
+      req.user = operator.user
+        ? {
+            ...operator.user,
+            id: operatorWorkspaceId,
+            actualId: operator.user.id,
+            workspaceId: operatorWorkspaceId,
+            superAdminId: operatorWorkspaceId,
+          }
+        : null;
+
       return next();
     }
 
@@ -74,8 +88,22 @@ export const verifyVmsAuth = async (req, res, next) => {
       });
     }
 
-    req.user = user;
-    req.userId = user.id;
+    // Method 1: Middleware-Level Workspace Resolution
+    const superAdminId = resolveWorkspaceSuperAdminId(user);
+    const originalUserId = user.id;
+
+    req.workspaceId = superAdminId;
+    req.userId = superAdminId;
+    req.actualUserId = originalUserId;
+
+    req.user = {
+      ...user,
+      id: superAdminId,
+      actualId: originalUserId,
+      workspaceId: superAdminId,
+      superAdminId,
+    };
+
     next();
   } catch (error) {
     return res.status(401).json({

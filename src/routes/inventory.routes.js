@@ -1,6 +1,7 @@
 import { Router } from "express";
 
 import { verifyJWT } from "../middleware/auth.middleware.js";
+import { requirePermission } from "../middleware/permission.middleware.js";
 
 import {
   getInventories,
@@ -20,23 +21,23 @@ const router = Router();
 // ==================================================================================
 
 // Get All Inventories
-router.get("/", verifyJWT, getInventories);
+router.get("/", verifyJWT, requirePermission("products/inventory", "read"), getInventories);
 
 // Export Inventory Excel
-router.get("/export", verifyJWT, exportInventory);
+router.get("/export", verifyJWT, requirePermission("products/inventory", "read"), exportInventory);
 
-router.post("/import", verifyJWT, excelUpload.single("file"), importInventory);
+router.post("/import", verifyJWT, requirePermission("products/inventory", "create"), excelUpload.single("file"), importInventory);
 
 // Get Inventory By Id
-router.get("/:id", verifyJWT, getInventoryById);
+router.get("/:id", verifyJWT, requirePermission("products/inventory", "read"), getInventoryById);
 
 // Update Inventory Settings
-router.patch("/:id", verifyJWT, updateInventory);
+router.patch("/:id", verifyJWT, requirePermission("products/inventory", "update"), updateInventory);
 
 // Adjust Inventory Stock
-router.patch("/:id/adjust", verifyJWT, adjustInventory);
+router.patch("/:id/adjust", verifyJWT, requirePermission("products/inventory", "update"), adjustInventory);
 
 // Delete Inventory
-router.delete("/:id", verifyJWT, deleteInventory);
+router.delete("/:id", verifyJWT, requirePermission("products/inventory", "delete"), deleteInventory);
 
 export default router;

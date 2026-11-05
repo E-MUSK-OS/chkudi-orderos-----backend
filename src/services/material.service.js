@@ -19,6 +19,8 @@ import { updateVariantsStatusByMaterial } from "../repositories/materialVariant.
 import { upsertAsinImport } from "../repositories/asinImport.repository.js";
 import prisma from "../config/prisma.js";
 import * as xlsx from "xlsx";
+import { getAllMasterDropdownOptionsService, normalizeFieldKey, ensureFieldDefaultsInDb } from "./settingMasters.service.js";
+import { getWorkspaceDropdownManagementMode } from "./clientConfiguration.service.js";
 
 // ======================================================
 // Validate Material Attributes
@@ -236,6 +238,8 @@ export const importMaterialsFromExcelService = async (userId, fileBuffer) => {
     const masterSku = String(row["mastersku"] || row["sku"] || "").trim();
     const materialName = String(row["materialname"] || row["name"] || "").trim();
     const category = String(row["category"] || "").trim();
+    const subCategory = String(row["subcategory"] || row["sub_category"] || "").trim();
+    const forUse = String(row["foruse"] || row["for_use"] || row["for"] || "").trim();
     const manufacturingGroup = String(row["manufacturinggroup"] || row["mfggroup"] || "").trim();
     const unit = String(row["unit"] || "Meters").trim();
     const hsnCode = String(row["hsncode"] || row["hsn"] || "").trim();
@@ -307,6 +311,8 @@ export const importMaterialsFromExcelService = async (userId, fileBuffer) => {
       masterSku,
       materialName,
       category,
+      subCategory: subCategory || null,
+      forUse: forUse || null,
       manufacturingGroup,
       unit,
       colors,
@@ -373,6 +379,8 @@ export const autoPersistMaterialOptions = async (userId, data) => {
   try {
     const fieldsToPersist = [
       "category",
+      "subCategory",
+      "forUse",
       "brand",
       "unit",
       "manufacturingGroup",
@@ -382,14 +390,45 @@ export const autoPersistMaterialOptions = async (userId, data) => {
       "purchaseType",
     ];
 
+    const ignoredValues = new Set([
+      "no category",
+      "no sub category",
+      "no manufacturing group",
+      "no unit",
+      "no brand",
+      "no for use",
+      "no cost applying mode",
+      "no purchase type",
+      "no issue mode",
+      "no consumption mode",
+    ]);
+
     for (const field of fieldsToPersist) {
       const val = data[field];
-      if (val && typeof val === "string" && val.trim() && val.trim() !== "No Brand") {
-        await upsertDropdownOption(userId, {
-          field,
-          value: val.trim(),
-          label: val.trim(),
-        });
+      if (val && typeof val === "string") {
+        const trimmed = val.trim();
+        const lower = trimmed.toLowerCase();
+        if (trimmed && !ignoredValues.has(lower) && !lower.startsWith("no ")) {
+          await upsertDropdownOption(userId, {
+            field: field.toLowerCase(),
+            value: trimmed,
+            label: trimmed,
+          });
+          if (field === "category") {
+            await upsertDropdownOption(userId, {
+              field: "materialcategory",
+              value: trimmed,
+              label: trimmed,
+            });
+          }
+          if (field === "subCategory") {
+            await upsertDropdownOption(userId, {
+              field: "materialsubcategory",
+              value: trimmed,
+              label: trimmed,
+            });
+          }
+        }
       }
     }
   } catch (err) {
@@ -399,63 +438,154 @@ export const autoPersistMaterialOptions = async (userId, data) => {
 
 export const getDropdownOptionsService = async (userId) => {
   const [userSaved, parties, existingMaterials, variantColorAttrs] = await Promise.all([
-    getDropdownOptionsByUserId(userId),
-    getPartiesByUserId(userId),
-    prisma.material.findMany({
-      where: { userId },
-      select: {
-        category: true,
-        brand: true,
-        unit: true,
-        gender: true,
-        referenceParty: true,
-        rackAddress: true,
-        availability: true,
-        colors: true,
-        gstRate: true,
-      },
+    getAllMasterDropdownOptionsService(userId).catch((err) => {
+      console.error("Error fetching master dropdown options:", err);
+      return [];
     }),
-    prisma.materialVariantAttribute.findMany({
-      where: {
-        materialVariant: {
-          material: { userId },
+    getPartiesByUserId(userId).catch((err) => {
+      console.error("Error fetching parties:", err);
+      return [];
+    }),
+    prisma.material
+      .findMany({
+        where: { userId },
+        select: {
+          category: true,
+          subCategory: true,
+          forUse: true,
+          brand: true,
+          unit: true,
+          manufacturingGroup: true,
+          costApplyingMode: true,
+          purchaseType: true,
+          issueMode: true,
+          consumptionMode: true,
+          gender: true,
+          referenceParty: true,
+          rackAddress: true,
+          availability: true,
+          colors: true,
+          gstRate: true,
         },
-        materialAttribute: {
-          attributeName: {
-            in: ["Colour", "colour", "Color", "color"],
+      })
+      .catch((err) => {
+        console.error("Error fetching existing materials:", err);
+        return [];
+      }),
+    prisma.materialVariantAttribute
+      .findMany({
+        where: {
+          materialVariant: {
+            material: { userId },
+          },
+          materialAttribute: {
+            attributeName: {
+              in: ["Colour", "colour", "Color", "color"],
+            },
           },
         },
-      },
-      select: {
-        attributeValue: true,
-      },
-    }).catch(() => []),
+        select: {
+          attributeValue: true,
+        },
+      })
+      .catch(() => []),
   ]);
 
   const variantColors = (variantColorAttrs || [])
     .flatMap((va) => (va.attributeValue ? va.attributeValue.split(",").map((s) => s.trim()) : []))
     .filter(Boolean);
 
-  const materialColors = existingMaterials.flatMap((p) => p.colors || []).filter(Boolean);
+  const materialColors = (existingMaterials || []).flatMap((p) => p.colors || []).filter(Boolean);
+
+  // Build disabled lookup set to ensure deactivated options never leak through distinct lists
+  const disabledMap = new Map();
+  (userSaved || []).forEach((o) => {
+    if (o.isActive === false || o.label === "__DELETED__") {
+      const f = o.field.toLowerCase();
+      if (!disabledMap.has(f)) disabledMap.set(f, new Set());
+      if (o.value) disabledMap.get(f).add(o.value.trim().toLowerCase());
+      if (o.label && o.label !== "__DELETED__") disabledMap.get(f).add(o.label.trim().toLowerCase());
+    }
+  });
+
+  const cleanValues = (field, arr, ignoredList = []) => {
+    const ignoredSet = new Set(ignoredList.map((s) => s.toLowerCase()));
+    const disabledSet = disabledMap.get(field.toLowerCase());
+    return [
+      ...new Set(
+        arr
+          .filter(
+            (v) =>
+              v &&
+              typeof v === "string" &&
+              v.trim() &&
+              !ignoredSet.has(v.trim().toLowerCase()) &&
+              !v.trim().toLowerCase().startsWith("no ") &&
+              (!disabledSet || !disabledSet.has(v.trim().toLowerCase()))
+          )
+          .map((v) => v.trim())
+      ),
+    ];
+  };
+
+  const disabledGst = disabledMap.get("gstrate") || disabledMap.get("gst");
+  const distinctMaterials = {
+    categories: cleanValues("category", existingMaterials.map((p) => p.category), ["no category"]),
+    subCategories: cleanValues("subcategory", existingMaterials.map((p) => p.subCategory), ["no sub category"]),
+    forUses: cleanValues("foruse", existingMaterials.map((p) => p.forUse), ["no for use"]),
+    manufacturingGroups: cleanValues("manufacturinggroup", existingMaterials.map((p) => p.manufacturingGroup), ["no manufacturing group"]),
+    brands: cleanValues("brand", existingMaterials.map((p) => p.brand), ["no brand"]),
+    units: cleanValues("unit", existingMaterials.map((p) => p.unit), ["no unit"]),
+    costApplyingModes: cleanValues("costapplyingmode", existingMaterials.map((p) => p.costApplyingMode), ["no cost applying mode"]),
+    purchaseTypes: cleanValues("purchasetype", existingMaterials.map((p) => p.purchaseType), ["no purchase type"]),
+    issueModes: cleanValues("issuemode", existingMaterials.map((p) => p.issueMode), ["no issue mode"]),
+    consumptionModes: cleanValues("consumptionmode", existingMaterials.map((p) => p.consumptionMode), ["no consumption mode"]),
+    genders: cleanValues("gender", existingMaterials.map((p) => p.gender)),
+    referenceParties: cleanValues("referenceparty", existingMaterials.map((p) => p.referenceParty)),
+    rackAddresses: cleanValues("rackaddress", existingMaterials.map((p) => p.rackAddress)),
+    availabilities: cleanValues("availability", existingMaterials.map((p) => p.availability)),
+    colors: cleanValues("color", [...materialColors, ...variantColors]),
+    gstRates: [
+      ...new Set(
+        existingMaterials
+          .map((p) => p.gstRate)
+          .filter((g) => g !== null && g !== undefined && (!disabledGst || !disabledGst.has(String(g).trim().toLowerCase())))
+      ),
+    ],
+  };
 
   return {
-    savedOptions: userSaved,
-    parties: parties.map((p) => p.partyName).filter(Boolean),
-    distinctFromProducts: {
-      categories: [...new Set(existingMaterials.map((p) => p.category).filter(Boolean))],
-      brands: [...new Set(existingMaterials.map((p) => p.brand).filter(Boolean))],
-      units: [...new Set(existingMaterials.map((p) => p.unit).filter(Boolean))],
-      genders: [...new Set(existingMaterials.map((p) => p.gender).filter(Boolean))],
-      referenceParties: [...new Set(existingMaterials.map((p) => p.referenceParty).filter(Boolean))],
-      rackAddresses: [...new Set(existingMaterials.map((p) => p.rackAddress).filter(Boolean))],
-      availabilities: [...new Set(existingMaterials.map((p) => p.availability).filter(Boolean))],
-      colors: [...new Set([...materialColors, ...variantColors])],
-      gstRates: [...new Set(existingMaterials.map((p) => p.gstRate).filter((g) => g !== null && g !== undefined))],
-    },
+    savedOptions: userSaved.filter(
+      (o) =>
+        o.value &&
+        !o.value.toLowerCase().startsWith("no ") &&
+        !["no category", "no sub category", "no manufacturing group", "no unit", "no brand", "no for use"].includes(
+          o.value.toLowerCase()
+        )
+    ),
+    parties: parties
+      .map((p) => p.partyName)
+      .filter((p) => Boolean(p) && (!disabledMap.get("referenceparty") || !disabledMap.get("referenceparty").has(p.trim().toLowerCase()))),
+    distinctFromProducts: distinctMaterials,
+    distinctFromMaterials: distinctMaterials,
   };
 };
 
 export const saveDropdownOptionService = async (userId, data) => {
-  return await upsertDropdownOption(userId, data);
+  const rawField = data?.field ? String(data.field).trim().toLowerCase() : "";
+  let targetField = rawField;
+  if (rawField === "materialcategory" || rawField === "category") {
+    targetField = "materialcategory";
+  } else if (rawField === "materialsubcategory" || rawField === "subcategory") {
+    targetField = "materialsubcategory";
+  } else if (rawField === "colour" || rawField === "colours") {
+    targetField = "color";
+  } else {
+    targetField = normalizeFieldKey(rawField);
+  }
+  if (targetField) {
+    await ensureFieldDefaultsInDb(userId, targetField);
+  }
+  return await upsertDropdownOption(userId, { ...data, field: targetField });
 };
 

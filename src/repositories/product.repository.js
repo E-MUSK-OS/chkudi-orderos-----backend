@@ -127,6 +127,8 @@ export const createProduct = async (data) => {
           data: {
             productId: product.id,
             variantSku: autoVariantSku,
+            myntraSku: product.myntraSku,
+            fsnCode: product.fsnCode,
             asin: product.asin,
             rackAddress: product.rackAddress,
             isActive: product.isActive,
@@ -147,6 +149,8 @@ export const createProduct = async (data) => {
         data: {
           productId: product.id,
           variantSku: product.masterSku,
+          myntraSku: product.myntraSku,
+          fsnCode: product.fsnCode,
           asin: product.asin,
           rackAddress: product.rackAddress,
           isActive: product.isActive,
@@ -727,6 +731,8 @@ export const updateProduct = async (id, data) => {
               data: {
                 productId: id,
                 variantSku: targetSku,
+                myntraSku: activeProduct?.myntraSku,
+                fsnCode: activeProduct?.fsnCode,
                 asin: activeProduct?.asin,
                 rackAddress: activeProduct?.rackAddress,
                 isActive: activeProduct?.isActive ?? true,
@@ -893,12 +899,14 @@ export const upsertDropdownOption = async (userId, { field, value, label }) => {
     },
     update: {
       label: cleanLabel,
+      isActive: true,
     },
     create: {
       userId,
       field: cleanField,
       value: cleanValue,
       label: cleanLabel,
+      isActive: true,
     },
   });
 };

@@ -55,6 +55,8 @@ export const createProductVariantService = async (userId, data) => {
       {
         ...data,
         asin: data.asin?.trim() || null,
+        myntraSku: data.myntraSku?.trim() || null,
+        fsnCode: data.fsnCode?.trim() || null,
         rackAddress: data.rackAddress?.trim() || null,
         generateBarcode: effectiveBarcode,
         isActive: data.isActive ?? true,
@@ -62,7 +64,19 @@ export const createProductVariantService = async (userId, data) => {
       tx,
     );
 
-    const warehouses = await getWarehousesByUserId(userId, tx);
+    let warehouses = await getWarehousesByUserId(userId, tx);
+    if (!warehouses || warehouses.length === 0) {
+      const defaultWh = await tx.warehouse.create({
+        data: {
+          userId,
+          warehouseName: "Main Warehouse",
+          warehouseCode: "WH-MAIN",
+          isDefault: true,
+          isActive: true,
+        },
+      });
+      warehouses = [defaultWh];
+    }
 
     // if (!defaultWarehouse) {
     //   throw new Error("Please create a default warehouse first.");
@@ -74,12 +88,12 @@ export const createProductVariantService = async (userId, data) => {
         warehouseId: warehouse.id,
         userId,
 
-        availableStock: 0,
+        availableStock: Number(product.openingStock) || 0,
         reservedStock: 0,
         incomingStock: 0,
         damagedStock: 0,
 
-        reorderLevel: 10,
+        reorderLevel: Number(product.reorderLevelStock) || 10,
       })),
     });
 
@@ -169,6 +183,8 @@ export const updateProductVariantService = async (id, userId, data) => {
   const updated = await updateProductVariant(id, userId, {
     ...data,
     ...(data.asin !== undefined ? { asin: data.asin?.trim() || null } : {}),
+    ...(data.myntraSku !== undefined ? { myntraSku: data.myntraSku?.trim() || null } : {}),
+    ...(data.fsnCode !== undefined ? { fsnCode: data.fsnCode?.trim() || null } : {}),
     ...(data.rackAddress !== undefined ? { rackAddress: data.rackAddress?.trim() || null } : {}),
     ...(data.generateBarcode !== undefined ? { generateBarcode: data.generateBarcode?.trim() || "No" } : {}),
   });

@@ -12,6 +12,184 @@ import { AppError } from "../utils/AppError.js";
 import prisma from "../config/prisma.js";
 import { checkInventoryNotifications } from "./inventoryNotification.service.js";
 
+export const syncProductInventoryService = async (productId, userId, tx = prisma) => {
+  if (!productId || !userId) return;
+
+  try {
+    let warehouses = await tx.warehouse.findMany({
+      where: { userId },
+    });
+
+    if (warehouses.length === 0) {
+      const defaultWh = await tx.warehouse.create({
+        data: {
+          userId,
+          warehouseName: "Main Warehouse",
+          warehouseCode: "WH-MAIN",
+          isDefault: true,
+          isActive: true,
+        },
+      });
+      warehouses = [defaultWh];
+    }
+
+    const product = await tx.product.findFirst({
+      where: { id: productId, userId },
+      include: {
+        variants: {
+          include: {
+            inventories: true,
+          },
+        },
+      },
+    });
+
+    if (!product) return;
+
+    let variants = product.variants;
+    if (!variants || variants.length === 0) {
+      const baseVariant = await tx.productVariant.create({
+        data: {
+          productId: product.id,
+          variantSku: product.masterSku,
+          asin: product.asin,
+          rackAddress: product.rackAddress,
+          isActive: product.isActive,
+        },
+        include: {
+          inventories: true,
+        },
+      });
+      variants = [baseVariant];
+    }
+
+    const openingStock = Number(product.openingStock) || 0;
+    const reorderLevel = Number(product.reorderLevelStock) || 10;
+
+    for (const variant of variants) {
+      for (const warehouse of warehouses) {
+        const existing =
+          (variant.inventories || []).find((inv) => inv.warehouseId === warehouse.id) ||
+          (await tx.productInventory.findUnique({
+            where: {
+              productVariantId_warehouseId: {
+                productVariantId: variant.id,
+                warehouseId: warehouse.id,
+              },
+            },
+          }));
+
+        if (!existing) {
+          await tx.productInventory.create({
+            data: {
+              productVariantId: variant.id,
+              warehouseId: warehouse.id,
+              userId,
+              availableStock: openingStock,
+              reservedStock: 0,
+              incomingStock: 0,
+              damagedStock: 0,
+              reorderLevel: reorderLevel,
+            },
+          });
+        } else {
+          await tx.productInventory.update({
+            where: { id: existing.id },
+            data: {
+              reorderLevel: reorderLevel,
+              ...(product.openingStock !== null && product.openingStock !== undefined
+                ? { availableStock: openingStock }
+                : {}),
+            },
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.error(`syncProductInventoryService error for product ${productId}:`, err);
+  }
+};
+
+export const ensureAllUserProductsInventoryService = async (userId) => {
+  if (!userId) return;
+
+  try {
+    let warehouses = await prisma.warehouse.findMany({
+      where: { userId },
+    });
+
+    if (warehouses.length === 0) {
+      const defaultWh = await prisma.warehouse.create({
+        data: {
+          userId,
+          warehouseName: "Main Warehouse",
+          warehouseCode: "WH-MAIN",
+          isDefault: true,
+          isActive: true,
+        },
+      });
+      warehouses = [defaultWh];
+    }
+
+    const products = await prisma.product.findMany({
+      where: { userId },
+      include: {
+        variants: {
+          include: {
+            inventories: true,
+          },
+        },
+      },
+    });
+
+    for (const product of products) {
+      let variants = product.variants;
+      if (!variants || variants.length === 0) {
+        const baseVariant = await prisma.productVariant.create({
+          data: {
+            productId: product.id,
+            variantSku: product.masterSku,
+            asin: product.asin,
+            rackAddress: product.rackAddress,
+            isActive: product.isActive,
+          },
+          include: {
+            inventories: true,
+          },
+        });
+        variants = [baseVariant];
+      }
+
+      const openingStock = Number(product.openingStock) || 0;
+      const reorderLevel = Number(product.reorderLevelStock) || 10;
+
+      for (const variant of variants) {
+        for (const warehouse of warehouses) {
+          const hasInv = (variant.inventories || []).some(
+            (inv) => inv.warehouseId === warehouse.id
+          );
+          if (!hasInv) {
+            await prisma.productInventory.create({
+              data: {
+                productVariantId: variant.id,
+                warehouseId: warehouse.id,
+                userId,
+                availableStock: openingStock,
+                reservedStock: 0,
+                incomingStock: 0,
+                damagedStock: 0,
+                reorderLevel: reorderLevel,
+              },
+            }).catch((err) => console.warn("Auto-create inventory warning:", err));
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error(`ensureAllUserProductsInventoryService error for user ${userId}:`, err);
+  }
+};
+
 export const getInventoriesService = async ({
   userId,
   warehouseId,
@@ -25,6 +203,12 @@ export const getInventoriesService = async ({
 }) => {
   if (!userId) {
     throw new AppError("User not found.", 401);
+  }
+
+  try {
+    await ensureAllUserProductsInventoryService(userId);
+  } catch (syncErr) {
+    console.error("Failed to auto-sync user products to inventory:", syncErr);
   }
 
   const result = await getInventories({
@@ -369,13 +553,45 @@ export const exportInventoryService = async (userId, warehouseId) => {
     ),
   ];
 
+  const hasAsin = inventories.some(
+    (inv) =>
+      Boolean(inv.productVariant?.asin?.trim()) ||
+      Boolean(inv.productVariant?.product?.asin?.trim()) ||
+      (inv.productVariant?.product?.marketplace &&
+        ["all", "amazon"].some((m) =>
+          inv.productVariant.product.marketplace.toLowerCase().includes(m),
+        )),
+  );
+
+  const hasMyntraSku = inventories.some(
+    (inv) =>
+      Boolean(inv.productVariant?.myntraSku?.trim()) ||
+      Boolean(inv.productVariant?.product?.myntraSku?.trim()) ||
+      (inv.productVariant?.product?.marketplace &&
+        ["all", "myntra"].some((m) =>
+          inv.productVariant.product.marketplace.toLowerCase().includes(m),
+        )),
+  );
+
+  const hasFsnCode = inventories.some(
+    (inv) =>
+      Boolean(inv.productVariant?.fsnCode?.trim()) ||
+      Boolean(inv.productVariant?.product?.fsnCode?.trim()) ||
+      (inv.productVariant?.product?.marketplace &&
+        ["all", "flipkart", "flipcart"].some((m) =>
+          inv.productVariant.product.marketplace.toLowerCase().includes(m),
+        )),
+  );
+
   worksheet.columns = [
     { header: "Warehouse Name", key: "warehouseName", width: 28 },
     { header: "Warehouse Code", key: "warehouseCode", width: 22 },
     { header: "Product Name", key: "productName", width: 35 },
     { header: "Master SKU", key: "masterSku", width: 25 },
     { header: "Variant SKU", key: "variantSku", width: 30 },
-    // { header: "Attributes", key: "attributes", width: 40 },
+    ...(hasAsin ? [{ header: "ASIN", key: "asin", width: 22 }] : []),
+    ...(hasMyntraSku ? [{ header: "Myntra SKU", key: "myntraSku", width: 22 }] : []),
+    ...(hasFsnCode ? [{ header: "FSN Code", key: "fsnCode", width: 22 }] : []),
     ...attributeNames.map((name) => ({
       header: name,
       key: name,
@@ -441,6 +657,30 @@ export const exportInventoryService = async (userId, warehouseId) => {
       masterSku: inventory.productVariant.product.masterSku,
 
       variantSku: inventory.productVariant.variantSku,
+      ...(hasAsin
+        ? {
+            asin:
+              inventory.productVariant?.asin ||
+              inventory.productVariant?.product?.asin ||
+              "",
+          }
+        : {}),
+      ...(hasMyntraSku
+        ? {
+            myntraSku:
+              inventory.productVariant?.myntraSku ||
+              inventory.productVariant?.product?.myntraSku ||
+              "",
+          }
+        : {}),
+      ...(hasFsnCode
+        ? {
+            fsnCode:
+              inventory.productVariant?.fsnCode ||
+              inventory.productVariant?.product?.fsnCode ||
+              "",
+          }
+        : {}),
 
       availableStock: inventory.availableStock,
 

@@ -16,6 +16,7 @@ import {
   attachBatchFilesController,
 } from "../controllers/amazonBatch.controller.js";
 import { uploadAmazonBatchFiles } from "../middleware/amazonBatch.middleware.js";
+import { requirePermission } from "../middleware/permission.middleware.js";
 
 const router = Router();
 
@@ -26,22 +27,22 @@ router.use(verifyJWT);
 // ==========================================
 
 // Save a processed batch with initial documents (summary, results, combinedPdf)
-router.post("/batches", uploadAmazonBatchFiles, saveBatchController);
+router.post("/batches", requirePermission("order-process/amazon/order-process", "create"), uploadAmazonBatchFiles, saveBatchController);
 
 // Attach additional documents to an existing batch (originalPdf, zplPdf, unmatched)
-router.post("/batches/:id/files", uploadAmazonBatchFiles, attachBatchFilesController);
+router.post("/batches/:id/files", requirePermission("order-process/amazon/order-process", "create"), uploadAmazonBatchFiles, attachBatchFilesController);
 
 // Get 7-day history list of batches
-router.get("/batches/history", getBatchHistoryController);
+router.get("/batches/history", requirePermission("order-process/amazon/order-process", "read"), getBatchHistoryController);
 
 // Get full details of a specific batch (summary, results, file URLs)
-router.get("/batches/:id", getBatchByIdController);
+router.get("/batches/:id", requirePermission("order-process/amazon/order-process", "read"), getBatchByIdController);
 
 // Stream / download a specific batch PDF file (combined, zpl, original)
-router.get("/batches/:id/files/:fileType", serveBatchFileController);
+router.get("/batches/:id/files/:fileType", requirePermission("order-process/amazon/order-process", "read"), serveBatchFileController);
 
 // Delete a specific batch and its printed orders
-router.delete("/batches/:id", deleteBatchController);
+router.delete("/batches/:id", requirePermission("order-process/amazon/order-process", "delete"), deleteBatchController);
 
 // ==========================================
 // Printed Orders & Scanning Routes

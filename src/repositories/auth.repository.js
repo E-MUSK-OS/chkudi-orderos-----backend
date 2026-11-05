@@ -6,6 +6,33 @@ export const findUserByEmail = async (email) => {
     where: {
       email,
     },
+    include: {
+      userMapping: {
+        select: {
+          superAdminId: true,
+          adminId: true,
+          allowedPages: true,
+          departments: true,
+          companies: true,
+          superAdmin: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              role: true,
+            },
+          },
+          admin: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              role: true,
+            },
+          },
+        },
+      },
+    },
   });
 };
 
@@ -14,6 +41,7 @@ export const createUser = async (data) => {
     data,
   });
 };
+
 export const createRefreshToken = async ({ token, userId, expiresAt }) => {
   return prisma.refreshToken.create({
     data: {
@@ -53,8 +81,38 @@ export const deleteRefreshToken = async (token) => {
 
 export const findUserById = async (id) => {
   return prisma.user.findUnique({
-    where: {
-      id,
+    where: { id },
+    include: {
+      userMapping: {
+        select: {
+          superAdminId: true,
+          adminId: true,
+          allowedPages: true,
+          departments: true,
+          companies: true,
+          superAdmin: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              role: true,
+            },
+          },
+          admin: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              role: true,
+              userMapping: {
+                select: {
+                  superAdminId: true,
+                },
+              },
+            },
+          },
+        },
+      },
     },
   });
 };
@@ -73,8 +131,40 @@ export const findUserProfileById = async (id) => {
       role: true,
       isVerified: true,
       isActive: true,
+      allowedPages: true,
+      rights: true,
+      avatar: true,
+      dob: true,
+      gender: true,
+      departments: true,
+      companies: true,
       createdAt: true,
       updatedAt: true,
+      userMapping: {
+        select: {
+          superAdminId: true,
+          adminId: true,
+          allowedPages: true,
+          departments: true,
+          companies: true,
+          superAdmin: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              role: true,
+            },
+          },
+          admin: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              role: true,
+            },
+          },
+        },
+      },
     },
   });
 };

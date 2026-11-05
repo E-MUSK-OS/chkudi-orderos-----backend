@@ -184,7 +184,7 @@ export const importProductsFromExcel = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      message: `Successfully imported ${result.importedCount} products.`,
+      message: result.message || `Successfully updated ${result.importedCount} record(s).`,
       data: result,
     });
   } catch (error) {
