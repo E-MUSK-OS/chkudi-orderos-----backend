@@ -111,6 +111,7 @@ export const createSalesChallanRepo = async (userId, data, items) => {
 
 export const findSalesChallansRepo = async (userId, filters = {}) => {
   const {
+    search,
     challanNo,
     challanRefNo,
     partyName,
@@ -186,8 +187,75 @@ export const findSalesChallansRepo = async (userId, filters = {}) => {
     };
   }
 
+  const searchTrimmed = typeof search === "string" ? search.trim() : "";
+  let searchOrConditions = [];
+
+  if (searchTrimmed) {
+    searchOrConditions.push(
+      { challanNo: { contains: searchTrimmed, mode: "insensitive" } },
+      { challanRefNo: { contains: searchTrimmed, mode: "insensitive" } },
+      { partyName: { contains: searchTrimmed, mode: "insensitive" } },
+      { contactNo: { contains: searchTrimmed, mode: "insensitive" } },
+      { preparedBy: { contains: searchTrimmed, mode: "insensitive" } },
+      { challanFor: { contains: searchTrimmed, mode: "insensitive" } },
+      { stockOutFrom: { contains: searchTrimmed, mode: "insensitive" } },
+      { invoiceStatus: { contains: searchTrimmed, mode: "insensitive" } },
+      { consigneeName: { contains: searchTrimmed, mode: "insensitive" } },
+      { deliveryBy: { contains: searchTrimmed, mode: "insensitive" } },
+      { deliveryTerms: { contains: searchTrimmed, mode: "insensitive" } },
+      {
+        party: {
+          OR: [
+            { partyName: { contains: searchTrimmed, mode: "insensitive" } },
+            { city: { contains: searchTrimmed, mode: "insensitive" } },
+            { state: { contains: searchTrimmed, mode: "insensitive" } },
+            { phone: { contains: searchTrimmed, mode: "insensitive" } },
+            { whatsapp: { contains: searchTrimmed, mode: "insensitive" } },
+            { accountCode: { contains: searchTrimmed, mode: "insensitive" } },
+            { alias: { contains: searchTrimmed, mode: "insensitive" } },
+          ],
+        },
+      },
+      {
+        items: {
+          some: {
+            OR: [
+              { sku: { contains: searchTrimmed, mode: "insensitive" } },
+              { name: { contains: searchTrimmed, mode: "insensitive" } },
+              { subCn: { contains: searchTrimmed, mode: "insensitive" } },
+              { remarks: { contains: searchTrimmed, mode: "insensitive" } },
+            ],
+          },
+        },
+      }
+    );
+
+    const searchNum = Number(searchTrimmed);
+    if (!isNaN(searchNum)) {
+      if (Number.isInteger(searchNum)) {
+        searchOrConditions.push({ totalQuantity: searchNum });
+      }
+      searchOrConditions.push({ totalAmount: searchNum });
+    }
+
+    const parsedSearchDate = parseFilterDate(searchTrimmed);
+    if (parsedSearchDate) {
+      const sDay = new Date(parsedSearchDate);
+      sDay.setUTCHours(0, 0, 0, 0);
+      const eDay = new Date(parsedSearchDate);
+      eDay.setUTCHours(23, 59, 59, 999);
+      searchOrConditions.push({
+        challanDate: {
+          gte: sDay,
+          lte: eDay,
+        },
+      });
+    }
+  }
+
   const where = {
     userId,
+    ...(searchOrConditions.length > 0 ? { OR: searchOrConditions } : {}),
     ...(challanNo ? { challanNo: { contains: challanNo, mode: "insensitive" } } : {}),
     ...(challanRefNo ? { challanRefNo: { contains: challanRefNo, mode: "insensitive" } } : {}),
     ...(partyName ? { partyName: { contains: partyName, mode: "insensitive" } } : {}),

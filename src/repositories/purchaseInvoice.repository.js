@@ -255,12 +255,61 @@ export const findPurchaseInvoicesRepo = async (userId, filters = {}) => {
 
   if (search && search.trim()) {
     const s = search.trim();
-    where.OR = [
+    const orConditions = [
       { invoiceNo: { contains: s, mode: "insensitive" } },
       { challanNo: { contains: s, mode: "insensitive" } },
       { billingPartyName: { contains: s, mode: "insensitive" } },
+      { shippingPartyName: { contains: s, mode: "insensitive" } },
       { partyGstn: { contains: s, mode: "insensitive" } },
+      { invoiceType: { contains: s, mode: "insensitive" } },
+      { status: { contains: s, mode: "insensitive" } },
+      { billingCity: { contains: s, mode: "insensitive" } },
+      { billingState: { contains: s, mode: "insensitive" } },
+      { shippingCity: { contains: s, mode: "insensitive" } },
+      { shippingState: { contains: s, mode: "insensitive" } },
+      { brokerName: { contains: s, mode: "insensitive" } },
+      { consigneeName: { contains: s, mode: "insensitive" } },
+      { ewayBillNo: { contains: s, mode: "insensitive" } },
+      { courierPartner: { contains: s, mode: "insensitive" } },
+      { trackingNo: { contains: s, mode: "insensitive" } },
+      { bankName: { contains: s, mode: "insensitive" } },
+      { chequeNo: { contains: s, mode: "insensitive" } },
+      { receiptMode: { contains: s, mode: "insensitive" } },
+      { receiptAccount: { contains: s, mode: "insensitive" } },
+      {
+        supplier: {
+          OR: [
+            { partyName: { contains: s, mode: "insensitive" } },
+            { gstin: { contains: s, mode: "insensitive" } },
+            { phone: { contains: s, mode: "insensitive" } },
+            { city: { contains: s, mode: "insensitive" } },
+            { state: { contains: s, mode: "insensitive" } },
+          ],
+        },
+      },
+      {
+        items: {
+          some: {
+            OR: [
+              { sku: { contains: s, mode: "insensitive" } },
+              { particular: { contains: s, mode: "insensitive" } },
+              { hsn: { contains: s, mode: "insensitive" } },
+            ],
+          },
+        },
+      },
     ];
+
+    const parsedNum = parseFloat(s);
+    if (!isNaN(parsedNum)) {
+      orConditions.push(
+        { netAmount: parsedNum },
+        { totalAmount: parsedNum },
+        { totalQuantity: parsedNum }
+      );
+    }
+
+    where.OR = orConditions;
   }
 
   if (startDate || endDate) {

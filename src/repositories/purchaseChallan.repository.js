@@ -117,6 +117,7 @@ export const createPurchaseChallanRepo = async (userId, data, items) => {
 
 export const findPurchaseChallansRepo = async (userId, filters = {}) => {
   const {
+    search,
     challanNo,
     partyChallanNo,
     supplierName,
@@ -190,8 +191,61 @@ export const findPurchaseChallansRepo = async (userId, filters = {}) => {
     };
   }
 
+  const searchTrimmed = typeof search === "string" ? search.trim() : "";
+  let searchOrConditions = [];
+
+  if (searchTrimmed) {
+    searchOrConditions.push(
+      { challanNo: { contains: searchTrimmed, mode: "insensitive" } },
+      { partyChallanNo: { contains: searchTrimmed, mode: "insensitive" } },
+      { supplierName: { contains: searchTrimmed, mode: "insensitive" } },
+      { contactNo: { contains: searchTrimmed, mode: "insensitive" } },
+      { preparedBy: { contains: searchTrimmed, mode: "insensitive" } },
+      { checkedBy: { contains: searchTrimmed, mode: "insensitive" } },
+      { receivedBy: { contains: searchTrimmed, mode: "insensitive" } },
+      { challanFor: { contains: searchTrimmed, mode: "insensitive" } },
+      { stockIn: { contains: searchTrimmed, mode: "insensitive" } },
+      { invoiceStatus: { contains: searchTrimmed, mode: "insensitive" } },
+      { courierPartner: { contains: searchTrimmed, mode: "insensitive" } },
+      { lrNo: { contains: searchTrimmed, mode: "insensitive" } },
+      {
+        supplier: {
+          OR: [
+            { partyName: { contains: searchTrimmed, mode: "insensitive" } },
+            { city: { contains: searchTrimmed, mode: "insensitive" } },
+            { state: { contains: searchTrimmed, mode: "insensitive" } },
+            { phone: { contains: searchTrimmed, mode: "insensitive" } },
+          ],
+        },
+      },
+      {
+        items: {
+          some: {
+            OR: [
+              { sku: { contains: searchTrimmed, mode: "insensitive" } },
+              { name: { contains: searchTrimmed, mode: "insensitive" } },
+              { poNo: { contains: searchTrimmed, mode: "insensitive" } },
+              { partyChallanNo: { contains: searchTrimmed, mode: "insensitive" } },
+              { remarks: { contains: searchTrimmed, mode: "insensitive" } },
+            ],
+          },
+        },
+      }
+    );
+
+    const parsedNum = parseFloat(searchTrimmed);
+    if (!isNaN(parsedNum)) {
+      searchOrConditions.push(
+        { totalOrderedQty: parsedNum },
+        { totalReceivedQty: parsedNum },
+        { totalAmount: parsedNum }
+      );
+    }
+  }
+
   const where = {
     userId,
+    ...(searchOrConditions.length > 0 ? { OR: searchOrConditions } : {}),
     ...(challanNo ? { challanNo: { contains: challanNo, mode: "insensitive" } } : {}),
     ...(partyChallanNo
       ? {
