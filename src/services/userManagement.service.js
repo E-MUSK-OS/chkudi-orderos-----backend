@@ -645,9 +645,6 @@ export const getUserDropdownOptionsService = async (userId) => {
 
   const userDepts = existingUsers.flatMap((u) => u.departments || []).filter(Boolean);
   const userCompanies = companies.map((c) => c.companyName).filter(Boolean);
-  const userGenders = existingUsers.map((u) => u.gender).filter(Boolean);
-
-  const isExcludedGender = (g) => ["male", "female"].includes(String(g || "").trim().toLowerCase());
 
   // Exclude inactive options
   const disabledDepts = new Set(
@@ -668,13 +665,8 @@ export const getUserDropdownOptionsService = async (userId) => {
     .filter((o) => o.field.toLowerCase() === "company" && o.isActive !== false)
     .map((o) => o.label || o.value);
 
-  const disabledGenders = new Set(
-    savedOptions
-      .filter((o) => o.field.toLowerCase() === "gender" && o.isActive === false)
-      .map((o) => o.value.toLowerCase())
-  );
   const activeSavedGenders = savedOptions
-    .filter((o) => o.field.toLowerCase() === "gender" && o.isActive !== false && !isExcludedGender(o.value))
+    .filter((o) => o.field.toLowerCase() === "gender" && o.isActive !== false)
     .map((o) => o.label || o.value);
 
   return {
@@ -694,7 +686,6 @@ export const getUserDropdownOptionsService = async (userId) => {
     genders: [
       ...new Set([
         ...activeSavedGenders,
-        ...userGenders.filter((g) => !disabledGenders.has(g.toLowerCase()) && !isExcludedGender(g)),
       ]),
     ],
   };

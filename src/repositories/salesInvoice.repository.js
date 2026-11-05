@@ -260,12 +260,87 @@ export const findSalesInvoicesRepo = async (userId, filters = {}) => {
 
   if (search && search.trim()) {
     const s = search.trim();
-    where.OR = [
+    const searchOrConditions = [
       { invoiceNo: { contains: s, mode: "insensitive" } },
       { challanNo: { contains: s, mode: "insensitive" } },
       { billingPartyName: { contains: s, mode: "insensitive" } },
+      { shippingPartyName: { contains: s, mode: "insensitive" } },
       { partyGstn: { contains: s, mode: "insensitive" } },
+      { invoiceType: { contains: s, mode: "insensitive" } },
+      { status: { contains: s, mode: "insensitive" } },
+      { billingCity: { contains: s, mode: "insensitive" } },
+      { billingState: { contains: s, mode: "insensitive" } },
+      { billingMobile: { contains: s, mode: "insensitive" } },
+      { billingEmail: { contains: s, mode: "insensitive" } },
+      { shippingCity: { contains: s, mode: "insensitive" } },
+      { shippingState: { contains: s, mode: "insensitive" } },
+      { shippingContact: { contains: s, mode: "insensitive" } },
+      { brokerName: { contains: s, mode: "insensitive" } },
+      { consigneeName: { contains: s, mode: "insensitive" } },
+      { ewayBillNo: { contains: s, mode: "insensitive" } },
+      { courierPartner: { contains: s, mode: "insensitive" } },
+      { trackingNo: { contains: s, mode: "insensitive" } },
+      { remarks: { contains: s, mode: "insensitive" } },
+      { bankName: { contains: s, mode: "insensitive" } },
+      { chequeNo: { contains: s, mode: "insensitive" } },
+      { receiptMode: { contains: s, mode: "insensitive" } },
+      { receiptAccount: { contains: s, mode: "insensitive" } },
+      { transactionType: { contains: s, mode: "insensitive" } },
+      {
+        items: {
+          some: {
+            OR: [
+              { sku: { contains: s, mode: "insensitive" } },
+              { particular: { contains: s, mode: "insensitive" } },
+              { hsn: { contains: s, mode: "insensitive" } },
+            ],
+          },
+        },
+      },
+      {
+        challan: {
+          OR: [
+            { challanRefNo: { contains: s, mode: "insensitive" } },
+            { challanNo: { contains: s, mode: "insensitive" } },
+          ],
+        },
+      },
+      {
+        party: {
+          OR: [
+            { partyName: { contains: s, mode: "insensitive" } },
+            { city: { contains: s, mode: "insensitive" } },
+            { state: { contains: s, mode: "insensitive" } },
+            { phone: { contains: s, mode: "insensitive" } },
+            { gstin: { contains: s, mode: "insensitive" } },
+          ],
+        },
+      },
     ];
+
+    const sNum = Number(s);
+    if (!isNaN(sNum)) {
+      if (Number.isInteger(sNum)) {
+        searchOrConditions.push({ totalQuantity: sNum });
+      }
+      searchOrConditions.push({ netAmount: sNum });
+      searchOrConditions.push({ receivedAmount: sNum });
+      searchOrConditions.push({ totalAmount: sNum });
+    }
+
+    const sDate = parseDateOrFallback(s);
+    if (sDate) {
+      const sDay = new Date(sDate);
+      sDay.setHours(0, 0, 0, 0);
+      const eDay = new Date(sDate);
+      eDay.setHours(23, 59, 59, 999);
+      searchOrConditions.push(
+        { invoiceDate: { gte: sDay, lte: eDay } },
+        { challanDate: { gte: sDay, lte: eDay } }
+      );
+    }
+
+    where.OR = searchOrConditions;
   }
 
   if (startDate || endDate) {
