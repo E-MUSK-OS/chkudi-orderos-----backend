@@ -83,6 +83,17 @@ export const createEmployeeService = async (userId, data, authUser) => {
     ];
   }
 
+  const rawBasicSalary =
+    data.basicSalary !== undefined && data.basicSalary !== null && data.basicSalary !== ""
+      ? Number(data.basicSalary)
+      : 0.0;
+  const basicSalary = isNaN(rawBasicSalary) ? 0.0 : rawBasicSalary;
+  const defaultTotalHours = 248.0;
+  const wageRate =
+    defaultTotalHours > 0 && basicSalary > 0
+      ? Number((basicSalary / defaultTotalHours).toFixed(2))
+      : 0.0;
+
   const employee = await prisma.employee.create({
     data: {
       userId,
@@ -98,12 +109,15 @@ export const createEmployeeService = async (userId, data, authUser) => {
       aadhaarNo: data.aadhaarNo ? data.aadhaarNo.trim() : null,
       dob: parseDateSafe(data.dob),
       bloodGroup: data.bloodGroup || null,
+      company: data.company ? data.company.trim() : null,
       branch: data.branch || null,
       department: data.department.trim(),
       designation: data.designation.trim(),
       salaryType: data.salaryType || "Salaried",
       joiningDate: parseDateSafe(data.joiningDate),
       workerProcess: data.workerProcess || null,
+      basicSalary,
+      wageRate,
       addressLine1: data.addressLine1 || null,
       addressLine2: data.addressLine2 || null,
       city: data.city || null,
@@ -155,6 +169,22 @@ export const getEmployeesService = async (userId, query = {}) => {
     };
   }
 
+  // Company filter
+  if (query.company && query.company !== "all") {
+    where.company = {
+      equals: query.company,
+      mode: "insensitive",
+    };
+  }
+
+  // Branch filter
+  if (query.branch && query.branch !== "all") {
+    where.branch = {
+      equals: query.branch,
+      mode: "insensitive",
+    };
+  }
+
   // Machine code filter
   if (query.machineCode && query.machineCode.trim()) {
     where.machineCode = {
@@ -183,6 +213,8 @@ export const getEmployeesService = async (userId, query = {}) => {
       { machineCode: { contains: term, mode: "insensitive" } },
       { department: { contains: term, mode: "insensitive" } },
       { designation: { contains: term, mode: "insensitive" } },
+      { company: { contains: term, mode: "insensitive" } },
+      { branch: { contains: term, mode: "insensitive" } },
     ];
   }
 
@@ -272,6 +304,18 @@ export const updateEmployeeService = async (id, userId, data, authUser) => {
   }
   if (data.joiningDate !== undefined) {
     updateData.joiningDate = parseDateSafe(data.joiningDate);
+  }
+
+  if (data.basicSalary !== undefined) {
+    const rawVal = data.basicSalary;
+    const parsedNum = rawVal === "" || rawVal === null ? 0.0 : Number(rawVal);
+    const safeBasic = isNaN(parsedNum) ? 0.0 : parsedNum;
+    updateData.basicSalary = safeBasic;
+
+    const currentTotalHours = existing.totalHours || 248.0;
+    if (data.wageRate === undefined && currentTotalHours > 0) {
+      updateData.wageRate = Number((safeBasic / currentTotalHours).toFixed(2));
+    }
   }
 
   const updated = await prisma.employee.update({

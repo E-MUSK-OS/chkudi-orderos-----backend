@@ -11,6 +11,9 @@ export const createCompanyDraftSchema = z.object({
     .max(15, "GST Number must be 15 characters")
     .transform((val) => val.toUpperCase()),
   companyName: z.string().trim().optional(),
+  branchName: z.string().trim().optional().nullable(),
+  parentCompanyName: z.string().trim().optional().nullable(),
+  parentCompanyId: z.string().trim().optional().nullable(),
   companyCode: z.string().trim().optional(),
   ownerName: z.string().trim().optional(),
 }).passthrough();
@@ -105,3 +108,16 @@ export const createCompanySchema = z.object({
 }).passthrough();
 
 export const updateCompanySchema = createCompanySchema.partial().passthrough();
+
+
+export const createCompanyBranchSchema = z.object({
+  companyId: z.string().trim().optional(),
+  branchName: z.string().trim().min(1, "Branch name is required"),
+  gstNumber: z
+    .string()
+    .trim()
+    .min(15, "GST Number must be 15 characters")
+    .max(15, "GST Number must be 15 characters")
+    .transform((val) => val.toUpperCase()),
+  status: z.string().trim().optional().default("ACTIVE"),
+}).passthrough();

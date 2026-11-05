@@ -6,6 +6,10 @@ import {
   updateCompanyRepo,
   toggleCompanyStatusRepo,
   deleteCompanyRepo,
+  createBranchRepo,
+  findBranchesRepo,
+  deleteBranchRepo,
+  updateBranchStatusRepo,
 } from "../repositories/company.repository.js";
 import { saveBase64Media } from "../utils/companyMediaNasPath.js";
 
@@ -84,7 +88,13 @@ export const createCompanyDraftService = async (userId, data) => {
 
   const { stateCode, state, panNumber } = parseGstDetails(gst);
 
-  const companyNameVal = data.companyName ? data.companyName.trim() : `Company (${gst.substring(0, 8)}...)`;
+  let companyNameVal = "";
+  if (data.companyName && data.companyName.trim()) {
+    companyNameVal = data.companyName.trim();
+  } else {
+    companyNameVal = `Company (${gst.substring(0, 8)}...)`;
+  }
+
   const codeVal = data.companyCode
     ? data.companyCode.trim().toUpperCase()
     : companyNameVal && companyNameVal.length <= 6
@@ -95,6 +105,9 @@ export const createCompanyDraftService = async (userId, data) => {
 
   const draftData = {
     companyName: companyNameVal,
+    isBranch: false,
+    parentCompanyId: null,
+    companyBranchName: null,
     legalName: data.companyName ? data.companyName.trim() : null,
     brandName: data.companyName ? data.companyName.trim() : null,
     companyCode: codeVal,
@@ -109,6 +122,73 @@ export const createCompanyDraftService = async (userId, data) => {
   };
 
   return await createCompanyRepo(userId, draftData);
+};
+
+export const createBranchService = async (userId, data) => {
+  const companyId = data.companyId;
+  const branchName = data.branchName ? data.branchName.trim() : "";
+  const gstNumber = data.gstNumber ? data.gstNumber.trim().toUpperCase() : "";
+
+  if (!companyId) {
+    throw new Error("Company ID is required.");
+  }
+  if (!branchName) {
+    throw new Error("Branch name is required.");
+  }
+  if (!gstNumber || gstNumber.length !== 15) {
+    throw new Error("A valid 15-character GST number is required.");
+  }
+
+  const company = await findCompanyByIdRepo(companyId, userId);
+  if (!company) {
+    throw new Error("Parent company not found.");
+  }
+
+  const existingBranches = await findBranchesRepo(userId, companyId);
+  const duplicateName = existingBranches.some(
+    (b) => b.branchName.toLowerCase() === branchName.toLowerCase()
+  );
+  if (duplicateName) {
+    throw new Error(`A branch named "${branchName}" already exists for this company.`);
+  }
+
+  const branch = await createBranchRepo({
+    userId,
+    companyId,
+    branchName,
+    gstNumber,
+    status: data.status || "ACTIVE",
+  });
+
+  return {
+    ...branch,
+    companyName: company.companyName,
+    displayName: `${company.companyName} - ${branchName}`,
+  };
+};
+
+export const getBranchesService = async (userId, companyId = null) => {
+  return await findBranchesRepo(userId, companyId);
+};
+
+export const deleteBranchService = async (id, userId) => {
+  const deleted = await deleteBranchRepo(id, userId);
+  if (!deleted) {
+    throw new Error("Branch not found or could not be deleted.");
+  }
+  return deleted;
+};
+
+export const updateBranchStatusService = async (id, userId, status) => {
+  const normStatus = (status || "").toUpperCase();
+  if (normStatus !== "ACTIVE" && normStatus !== "INACTIVE") {
+    throw new Error("Invalid status. Must be ACTIVE or INACTIVE.");
+  }
+  const updated = await updateBranchStatusRepo(id, userId, normStatus);
+  if (!updated) {
+    throw new Error("Branch not found or could not be updated.");
+  }
+  return updated;
 };
 
 export const createCompanyService = async (userId, data) => {

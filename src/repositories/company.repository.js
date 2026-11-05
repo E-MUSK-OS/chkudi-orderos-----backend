@@ -82,12 +82,32 @@ export const findCompaniesRepo = async (userId, options = {}) => {
 };
 
 export const createCompanyRepo = async (userId, data) => {
-  return await prisma.company.create({
+  const { isBranch, parentCompanyId, companyBranchName, ...prismaData } = data;
+  const company = await prisma.company.create({
     data: {
       userId,
-      ...data,
+      ...prismaData,
     },
   });
+
+  if (isBranch || parentCompanyId || companyBranchName) {
+    try {
+      await prisma.$executeRawUnsafe(
+        'UPDATE "Company" SET "isBranch" = $1, "parentCompanyId" = $2, "companyBranchName" = $3 WHERE id = $4',
+        Boolean(isBranch),
+        parentCompanyId || null,
+        companyBranchName || null,
+        company.id
+      );
+      company.isBranch = Boolean(isBranch);
+      company.parentCompanyId = parentCompanyId || null;
+      company.companyBranchName = companyBranchName || null;
+    } catch (e) {
+      console.error("Error setting branch fields on company:", e);
+    }
+  }
+
+  return company;
 };
 
 export const updateCompanyRepo = async (id, userId, data) => {
@@ -115,4 +135,90 @@ export const deleteCompanyRepo = async (id, userId) => {
   return await prisma.company.delete({
     where: { id },
   });
+};
+
+/* ==========================================================================
+   Company Branch Repository (Separate CompanyBranch table with FKs)
+   ========================================================================== */
+
+export const createBranchRepo = async ({ userId, companyId, branchName, gstNumber, status = "ACTIVE" }) => {
+  const branchId = "br_" + Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
+  const query = `
+    INSERT INTO "CompanyBranch" ("id", "userId", "companyId", "branchName", "gstNumber", "status", "createdAt", "updatedAt")
+    VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+    RETURNING id, "userId", "companyId", "branchName", "gstNumber", "status", "createdAt", "updatedAt"
+  `;
+  const rows = await prisma.$queryRawUnsafe(
+    query,
+    branchId,
+    userId,
+    companyId,
+    branchName.trim(),
+    gstNumber.trim().toUpperCase(),
+    status || "ACTIVE"
+  );
+  return rows?.[0] || null;
+};
+
+export const findBranchesRepo = async (userId, companyId = null) => {
+  try {
+    let query = `
+      SELECT b.id, b."userId", b."companyId", b."branchName", b."gstNumber", b."status", b."createdAt",
+             c."companyName"
+      FROM "CompanyBranch" b
+      JOIN "Company" c ON b."companyId" = c.id
+      WHERE b."userId" = $1
+    `;
+    const params = [userId];
+
+    if (companyId) {
+      query += ' AND b."companyId" = $2';
+      params.push(companyId);
+    }
+
+    query += ' ORDER BY b."createdAt" ASC';
+
+    const rows = await prisma.$queryRawUnsafe(query, ...params);
+
+    return (rows || []).map((b) => ({
+      id: b.id,
+      companyId: b.companyId,
+      companyName: b.companyName,
+      branchName: b.branchName,
+      displayName: `${b.companyName} - ${b.branchName}`,
+      gstNumber: b.gstNumber,
+      status: b.status,
+      createdAt: b.createdAt,
+    }));
+  } catch (err) {
+    console.error("findBranchesRepo error:", err);
+    return [];
+  }
+};
+
+export const deleteBranchRepo = async (id, userId) => {
+  try {
+    const query = 'DELETE FROM "CompanyBranch" WHERE id = $1 AND "userId" = $2 RETURNING id';
+    const rows = await prisma.$queryRawUnsafe(query, id, userId);
+    return rows?.[0] || null;
+  } catch (err) {
+    console.error("deleteBranchRepo error:", err);
+    return null;
+  }
+};
+
+export const updateBranchStatusRepo = async (id, userId, status) => {
+  try {
+    const query = `
+      UPDATE "CompanyBranch"
+      SET "status" = $1, "updatedAt" = NOW()
+      WHERE "id" = $2 AND "userId" = $3
+      RETURNING id, "userId", "companyId", "branchName", "gstNumber", "status", "createdAt", "updatedAt"
+    `;
+    const rows = await prisma.$queryRawUnsafe(query, status, id, userId);
+    return rows?.[0] || null;
+  } catch (err) {
+    console.error("updateBranchStatusRepo error:", err);
+    return null;
+  }
 };

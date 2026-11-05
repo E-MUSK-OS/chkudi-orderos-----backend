@@ -2,6 +2,10 @@ import {
   getCompaniesService,
   getCompanyByIdService,
   createCompanyDraftService,
+  createBranchService,
+  getBranchesService,
+  deleteBranchService,
+  updateBranchStatusService,
   createCompanyService,
   updateCompanyService,
   toggleCompanyStatusService,
@@ -11,6 +15,7 @@ import {
   createCompanyDraftSchema,
   createCompanySchema,
   updateCompanySchema,
+  createCompanyBranchSchema,
 } from "../validations/company.validation.js";
 
 export const getCompanies = async (req, res, next) => {
@@ -109,6 +114,82 @@ export const deleteCompany = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "Company deleted successfully.",
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/* ==========================================================================
+   Company Branches
+   ========================================================================== */
+
+export const createCompanyBranch = async (req, res, next) => {
+  try {
+    const validated = createCompanyBranchSchema.parse(req.body);
+    const companyId = req.params.id || validated.companyId;
+    const branch = await createBranchService(req.user.id, {
+      ...validated,
+      companyId,
+    });
+    return res.status(201).json({
+      success: true,
+      message: "Branch created successfully.",
+      data: branch,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getBranches = async (req, res, next) => {
+  try {
+    const branches = await getBranchesService(req.user.id);
+    return res.status(200).json({
+      success: true,
+      message: "Branches fetched successfully.",
+      data: branches,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getCompanyBranches = async (req, res, next) => {
+  try {
+    const branches = await getBranchesService(req.user.id, req.params.id);
+    return res.status(200).json({
+      success: true,
+      message: "Company branches fetched successfully.",
+      data: branches,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const deleteCompanyBranch = async (req, res, next) => {
+  try {
+    const branchId = req.params.branchId || req.params.id;
+    await deleteBranchService(branchId, req.user.id);
+    return res.status(200).json({
+      success: true,
+      message: "Branch deleted successfully.",
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const updateCompanyBranchStatus = async (req, res, next) => {
+  try {
+    const branchId = req.params.branchId || req.params.id;
+    const { status } = req.body;
+    const branch = await updateBranchStatusService(branchId, req.user.id, status);
+    return res.status(200).json({
+      success: true,
+      message: `Branch status updated to ${branch.status}.`,
+      data: branch,
     });
   } catch (err) {
     next(err);
