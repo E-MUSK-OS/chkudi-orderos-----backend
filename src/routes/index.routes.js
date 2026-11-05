@@ -38,8 +38,8 @@ import companyRoutes from "./company.routes.js";
 import employeeRoutes from "./employee.routes.js";
 import salariedEmployeeRoutes from "./salariedEmployee.routes.js";
 import clientConfigurationRoutes from "./clientConfiguration.routes.js";
+import requestedPoRoutes from "./requestedPo.routes.js";
 import settingMastersRoutes from "./settingMasters.routes.js";
-
 
 const router = Router();
 
@@ -86,7 +86,7 @@ router.use("/companies", companyRoutes);
 router.use("/employees", employeeRoutes);
 router.use("/salaried-employees", salariedEmployeeRoutes);
 router.use("/client-configuration", clientConfigurationRoutes);
+router.use("/requested-pos", requestedPoRoutes);
 router.use("/setting-masters", settingMastersRoutes);
-
 
 export default router;

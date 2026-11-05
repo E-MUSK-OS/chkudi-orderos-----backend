@@ -82,9 +82,11 @@ model User {
   amazonOrders              AmazonOrder[]
   amazonProcessBatches      AmazonProcessBatch[]
   myntraImports             MyntraImport[]
-  companyEntities Company[] @relation("UserCompanyEntities")
-  employees Employee[]
-  clientConfiguration ClientConfiguration? @relation("WorkspaceClientConfig")
+  companyEntities           Company[]                 @relation("UserCompanyEntities")
+  companyBranches           CompanyBranch[]
+  employees                 Employee[]
+  requestedPos              RequestedPO[]
+  clientConfiguration       ClientConfiguration?      @relation("WorkspaceClientConfig")
 
   @@index([createdById])
   @@index([ownerId])
@@ -1554,13 +1556,41 @@ model Company {
 
   status                String        @default("ACTIVE") // ACTIVE, DRAFT, INACTIVE
   isDefault             Boolean       @default(false)
+  isBranch              Boolean       @default(false)
+  parentCompanyId       String?
+  companyBranchName     String?
 
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
 
+  branches              CompanyBranch[]
+
   @@index([userId])
   @@index([gstNumber])
   @@index([status])
+}
+
+// ==================================================================================
+// ============================= COMPANY BRANCH MODEL ================================
+// ==================================================================================
+
+model CompanyBranch {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  branchName  String
+  gstNumber   String
+  status      String   @default("ACTIVE")
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([gstNumber])
 }
 
 // ==================================================================================
@@ -1587,6 +1617,7 @@ model Employee {
 
   dob               DateTime?
   bloodGroup        String?
+  company           String?
   branch            String?
   department        String
   designation       String
@@ -1670,6 +1701,37 @@ model EmployeeAbsentRecord {
 
   @@index([employeeId])
   @@index([financialYear])
+}
+
+
+// ==================================================================================
+// ============================ REQUESTED PO MODEL ==================================
+// ==================================================================================
+
+model RequestedPO {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  storeId         String
+  storeName       String
+  marketplaceName String?
+  poNumber        String
+  poDate          String
+  fileName        String?
+  itemsCount      Int       @default(0)
+  totalQuantity   Int       @default(0)
+  totalAmount     Float     @default(0.0)
+  status          String    @default("Uploaded") // "Uploaded" | "Processed" | "Pending"
+  columns         Json?     @default("[]")
+  items           Json      @default("[]")
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([storeId])
+  @@index([poNumber])
 }
 
 enum Role {

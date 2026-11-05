@@ -930,11 +930,92 @@ export const autoPersistProductOptions = async (userId, data) => {
 // Dropdown Options Services
 // ======================================================
 
+const DEFAULT_BUSINESS_TYPES = [
+  "Properiter",
+  "Partnership",
+  "Private Limited",
+  "Public Limited",
+  "LLP",
+  "Individual",
+  "HUF",
+  "Trust",
+  "Society",
+  "Joint Venture",
+];
+
+const DEFAULT_TRADE_CATEGORIES = [
+  "Manufacturing",
+  "Wholesale",
+  "Retail",
+  "Service",
+  "E-Commerce",
+  "Trader",
+  "Distributor",
+  "Job Worker",
+];
+
+const DEFAULT_ACCOUNT_HEADS = [
+  "Sundry Debtors",
+  "Sundry Creditors",
+  "Employee",
+  "Bank Accounts",
+  "Cash-in-hand",
+  "Direct Expenses",
+  "Indirect Expenses",
+  "Direct Incomes",
+  "Indirect Incomes",
+  "Capital Account",
+  "Duties & Taxes",
+  "Purchase Accounts",
+  "Sales Accounts",
+  "Loans & Advances",
+  "Current Assets",
+  "Current Liabilities",
+  "Fixed Assets",
+  "Investments",
+];
+
+const DEFAULT_DEPARTMENTS = [
+  "Admin",
+  "Cutting",
+  "Stitching",
+  "Finishing",
+  "Store",
+];
+
+const DEFAULT_DESIGNATIONS = [
+  "Admin",
+  "Master",
+  "Computer Operator",
+  "Manager",
+  "Supervisor",
+];
+
+const DEFAULT_SALARY_TYPES = [
+  "Salaried",
+  "Daily Wage",
+  "Piece Rate",
+  "Hourly",
+];
+
+const DEFAULT_WORKER_PROCESSES = [
+  "Cutting",
+  "Embroidery",
+  "Stitching",
+  "Ironing",
+  "Packing",
+  "Checking",
+  "Sampling",
+  "Printing",
+  "Washing",
+  "Finishing",
+];
+
 export const getDropdownOptionsService = async (userId) => {
-  const [userSaved, parties, existingProducts, variantColorAttrs] = await Promise.all([
+  let [userSaved, parties, existingProducts, variantColorAttrs] = await Promise.all([
     getAllMasterDropdownOptionsService(userId).catch((err) => {
       console.error("Error fetching master dropdown options:", err);
-      return [];
+      return getDropdownOptionsByUserId(userId).catch(() => []);
     }),
     getPartiesByUserId(userId).catch((err) => {
       console.error("Error fetching parties:", err);
@@ -1001,6 +1082,35 @@ export const getDropdownOptionsService = async (userId) => {
     return !disabledSet || !disabledSet.has(String(val).trim().toLowerCase());
   };
 
+  // Auto-seed default business types, trade categories, account heads & employee fields into DB if user doesn't have them yet
+  const defaultsToCheck = [
+    { field: "businesstype", list: DEFAULT_BUSINESS_TYPES },
+    { field: "tradecategory", list: DEFAULT_TRADE_CATEGORIES },
+    { field: "accounthead", list: DEFAULT_ACCOUNT_HEADS },
+    { field: "department", list: DEFAULT_DEPARTMENTS },
+    { field: "designation", list: DEFAULT_DESIGNATIONS },
+    { field: "salarytype", list: DEFAULT_SALARY_TYPES },
+    { field: "workerprocess", list: DEFAULT_WORKER_PROCESSES },
+  ];
+
+  const toInsert = [];
+  for (const item of defaultsToCheck) {
+    const hasField = userSaved.some((o) => o.field.toLowerCase() === item.field);
+    if (!hasField) {
+      for (const val of item.list) {
+        toInsert.push({ userId, field: item.field, value: val, label: val });
+      }
+    }
+  }
+
+  if (toInsert.length > 0) {
+    await prisma.dropdownOption.createMany({
+      data: toInsert,
+      skipDuplicates: true,
+    });
+    userSaved = await getDropdownOptionsByUserId(userId);
+  }
+
   return {
     savedOptions: userSaved.filter(
       (o) => !(o.field.toLowerCase() === "gender" && ["male", "female"].includes(String(o.value).trim().toLowerCase()))
@@ -1060,10 +1170,10 @@ export const saveProductImageService = async ({ user, userName, masterSku, color
     const existing = await fs.promises.readdir(targetDir);
     for (const f of existing) {
       if (path.parse(f).name.toLowerCase() === cleanColor.toLowerCase()) {
-        await fs.promises.unlink(path.join(targetDir, f)).catch(() => {});
+        await fs.promises.unlink(path.join(targetDir, f)).catch(() => { });
       }
     }
-  } catch (e) {}
+  } catch (e) { }
 
   const fileName = `${cleanColor}${ext}`;
   const filePath = path.join(targetDir, fileName);

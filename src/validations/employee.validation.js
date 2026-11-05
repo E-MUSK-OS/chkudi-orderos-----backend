@@ -13,12 +13,21 @@ export const createEmployeeSchema = z.object({
 
   dob: z.string().trim().optional().nullable().or(z.literal("")),
   bloodGroup: z.string().trim().optional().nullable().or(z.literal("")),
+  company: z.string().trim().optional().nullable().or(z.literal("")),
   branch: z.string().trim().optional().nullable().or(z.literal("")),
   department: z.string().trim().min(1, "Department is required."),
   designation: z.string().trim().min(1, "Designation is required."),
   salaryType: z.string().trim().optional().nullable().default("Salaried"),
   joiningDate: z.string().trim().optional().nullable().or(z.literal("")),
   workerProcess: z.string().trim().optional().nullable().or(z.literal("")),
+  basicSalary: z
+    .preprocess((val) => {
+      if (val === "" || val === null || val === undefined) return 0;
+      const num = Number(val);
+      return isNaN(num) ? 0 : num;
+    }, z.number().min(0))
+    .optional()
+    .default(0),
 
   // Address
   addressLine1: z.string().trim().optional().nullable().or(z.literal("")),
@@ -46,4 +55,3 @@ export const createEmployeeSchema = z.object({
 });
 
 export const updateEmployeeSchema = createEmployeeSchema.partial();
-
