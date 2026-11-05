@@ -120,11 +120,17 @@ export const updateCompanyRepo = async (id, userId, data) => {
   });
 };
 
-export const toggleCompanyStatusRepo = async (id, userId) => {
+export const toggleCompanyStatusRepo = async (id, userId, targetStatus) => {
   const current = await findCompanyByIdRepo(id, userId);
   if (!current) throw new Error("Company not found.");
 
-  const nextStatus = current.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+  let nextStatus;
+  if (targetStatus && typeof targetStatus === "string") {
+    nextStatus = targetStatus.toUpperCase();
+  } else {
+    nextStatus = current.status === "ACTIVE" ? "DRAFT" : "ACTIVE";
+  }
+
   return await prisma.company.update({
     where: { id },
     data: { status: nextStatus, updatedAt: new Date() },

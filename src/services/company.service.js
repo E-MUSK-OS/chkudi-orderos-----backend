@@ -244,8 +244,8 @@ export const updateCompanyService = async (id, userId, data) => {
   return await updateCompanyRepo(id, userId, data);
 };
 
-export const toggleCompanyStatusService = async (id, userId) => {
-  return await toggleCompanyStatusRepo(id, userId);
+export const toggleCompanyStatusService = async (id, userId, targetStatus) => {
+  return await toggleCompanyStatusRepo(id, userId, targetStatus);
 };
 
 export const deleteCompanyService = async (id, userId) => {

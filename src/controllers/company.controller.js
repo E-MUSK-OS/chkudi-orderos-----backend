@@ -97,7 +97,8 @@ export const updateCompany = async (req, res, next) => {
 
 export const toggleCompanyStatus = async (req, res, next) => {
   try {
-    const company = await toggleCompanyStatusService(req.params.id, req.user.id);
+    const { status } = req.body || {};
+    const company = await toggleCompanyStatusService(req.params.id, req.user.id, status);
     return res.status(200).json({
       success: true,
       message: `Company status changed to ${company.status}.`,
