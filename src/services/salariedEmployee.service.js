@@ -107,6 +107,16 @@ export const getSalariedEmployeeByIdService = async (
     throw err;
   }
 
+  const now = new Date();
+  const currentMonthDays = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  if (!employee.workingDays || employee.workingDays > currentMonthDays) {
+    employee.workingDays = currentMonthDays;
+    employee.totalHours = currentMonthDays * (employee.workingHoursPerDay || 8);
+    if (employee.basicSalary && employee.totalHours > 0) {
+      employee.wageRate = Number((employee.basicSalary / employee.totalHours).toFixed(2));
+    }
+  }
+
   return employee;
 };
 
@@ -121,7 +131,13 @@ export const updateSalaryDetailsService = async (id, userId, data) => {
     throw err;
   }
 
-  const workingDays = data.workingDays ?? existing.workingDays ?? 31;
+  const now = new Date();
+  const currentMonthDays = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const rawWorkingDays = data.workingDays ?? existing.workingDays ?? currentMonthDays;
+  const workingDays = Math.min(
+    Math.max(1, Number(rawWorkingDays) || currentMonthDays),
+    currentMonthDays
+  );
   const workingHoursPerDay =
     data.workingHoursPerDay ?? existing.workingHoursPerDay ?? 8.0;
   const totalHours = workingDays * workingHoursPerDay;

@@ -1350,6 +1350,16 @@ export const autoPersistProductOptions = async (userId, data) => {
 // ======================================================
 
 const DEFAULT_BUSINESS_TYPES = [
+  "Individual / Proprietor",
+  "Company",
+  "Firm / Partnership",
+  "Hindu Undivided Family (HUF)",
+  "Association of Persons (AOP)",
+  "Body of Individuals (BOI)",
+  "Trust",
+  "Local Authority",
+  "Artificial Juridical Person",
+  "Government",
   "Properiter",
   "Partnership",
   "Private Limited",
@@ -1357,7 +1367,6 @@ const DEFAULT_BUSINESS_TYPES = [
   "LLP",
   "Individual",
   "HUF",
-  "Trust",
   "Society",
   "Joint Venture",
 ];

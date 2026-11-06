@@ -81,8 +81,90 @@ export const findCompaniesRepo = async (userId, options = {}) => {
   };
 };
 
+const ALLOWED_COMPANY_FIELDS = new Set([
+  "companyName",
+  "companyCode",
+  "ownerName",
+  "gstNumber",
+  "panNumber",
+  "email",
+  "phone",
+  "legalName",
+  "brandName",
+  "abbreviation",
+  "businessType",
+  "website",
+  "addressLine1",
+  "addressLine2",
+  "city",
+  "state",
+  "stateCode",
+  "pincode",
+  "billingAddress1",
+  "billingAddress2",
+  "billingAddress3",
+  "billingPincode",
+  "billingArea",
+  "billingCity",
+  "billingState",
+  "billingCountry",
+  "billingContactName",
+  "billingContactNo",
+  "shippingSameAsBilling",
+  "shippingAddress1",
+  "shippingAddress2",
+  "shippingAddress3",
+  "shippingPincode",
+  "shippingArea",
+  "shippingCity",
+  "shippingState",
+  "shippingCountry",
+  "shippingContactName",
+  "shippingContactNo",
+  "tanNumber",
+  "cstNumber",
+  "fssaiNumber",
+  "tradeCategory",
+  "msmeNumber",
+  "bankName",
+  "accountHolderName",
+  "accountName",
+  "accountNumber",
+  "ifscCode",
+  "accountType",
+  "branchName",
+  "upiId",
+  "clientCode",
+  "productCode",
+  "taxInvoicePrefix",
+  "taxInvoiceNext",
+  "retailInvoicePrefix",
+  "retailInvoiceNext",
+  "considerInPnL",
+  "logoUrl",
+  "signatureUrl",
+  "completionPercentage",
+  "status",
+  "isDefault",
+  "isBranch",
+  "parentCompanyId",
+  "companyBranchName",
+]);
+
+export const sanitizeCompanyData = (data) => {
+  if (!data || typeof data !== "object") return {};
+  const sanitized = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (ALLOWED_COMPANY_FIELDS.has(key)) {
+      sanitized[key] = value;
+    }
+  }
+  return sanitized;
+};
+
 export const createCompanyRepo = async (userId, data) => {
-  const { isBranch, parentCompanyId, companyBranchName, ...prismaData } = data;
+  const sanitized = sanitizeCompanyData(data);
+  const { isBranch, parentCompanyId, companyBranchName, ...prismaData } = sanitized;
   const company = await prisma.company.create({
     data: {
       userId,
@@ -111,10 +193,11 @@ export const createCompanyRepo = async (userId, data) => {
 };
 
 export const updateCompanyRepo = async (id, userId, data) => {
+  const sanitized = sanitizeCompanyData(data);
   return await prisma.company.update({
     where: { id },
     data: {
-      ...data,
+      ...sanitized,
       updatedAt: new Date(),
     },
   });

@@ -102,6 +102,7 @@ export const createCompanySchema = z.object({
   logoUrl: z.string().trim().optional().nullable(),
   signatureUrl: z.string().trim().optional().nullable(),
   completionPercentage: z.number().optional().nullable(),
+  registrationDate: z.string().trim().optional().nullable(),
 
   status: z.enum(["ACTIVE", "DRAFT", "INACTIVE"]).optional().default("ACTIVE"),
   isDefault: z.boolean().optional().default(false),

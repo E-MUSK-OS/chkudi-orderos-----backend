@@ -54,16 +54,42 @@ const GST_STATE_MAP = {
   "37": "Andhra Pradesh",
 };
 
+export const PAN_ENTITY_MAP = {
+  P: "Individual / Proprietor",
+  C: "Company",
+  H: "Hindu Undivided Family (HUF)",
+  F: "Firm / Partnership",
+  A: "Association of Persons (AOP)",
+  B: "Body of Individuals (BOI)",
+  T: "Trust",
+  L: "Local Authority",
+  J: "Artificial Juridical Person",
+  G: "Government",
+};
+
+export const getBusinessTypeFromPan = (panOrGst) => {
+  if (!panOrGst || typeof panOrGst !== "string") return null;
+  const clean = panOrGst.trim().toUpperCase().replace(/[^0-9A-Z]/g, "");
+  let panChar = "";
+  if (clean.length === 15) {
+    panChar = clean.charAt(5);
+  } else if (clean.length >= 4) {
+    panChar = clean.charAt(3);
+  }
+  return PAN_ENTITY_MAP[panChar] || null;
+};
+
 export const parseGstDetails = (gstNumber) => {
   if (!gstNumber || gstNumber.length < 2) {
-    return { stateCode: "24", state: "Gujarat", panNumber: null };
+    return { stateCode: "24", state: "Gujarat", panNumber: null, businessType: null };
   }
   const cleanGst = gstNumber.trim().toUpperCase();
   const stateCode = cleanGst.substring(0, 2);
   const state = GST_STATE_MAP[stateCode] || "Gujarat";
   const panNumber = cleanGst.length >= 12 ? cleanGst.substring(2, 12) : null;
+  const businessType = getBusinessTypeFromPan(cleanGst);
 
-  return { stateCode, state, panNumber };
+  return { stateCode, state, panNumber, businessType };
 };
 
 export const getCompaniesService = async (userId, query = {}) => {
@@ -86,7 +112,7 @@ export const createCompanyDraftService = async (userId, data) => {
     throw new Error(`A company with GST number "${gst}" already exists.`);
   }
 
-  const { stateCode, state, panNumber } = parseGstDetails(gst);
+  const { stateCode, state, panNumber, businessType } = parseGstDetails(gst);
 
   let companyNameVal = "";
   if (data.companyName && data.companyName.trim()) {
@@ -112,6 +138,7 @@ export const createCompanyDraftService = async (userId, data) => {
     brandName: data.companyName ? data.companyName.trim() : null,
     companyCode: codeVal,
     abbreviation: codeVal,
+    businessType: data.businessType || businessType || "Individual / Proprietor",
     ownerName: data.ownerName || "",
     gstNumber: gst,
     panNumber: panNumber,
@@ -209,6 +236,7 @@ export const createCompanyService = async (userId, data) => {
     signatureUrl,
     gstNumber: gst,
     panNumber: data.panNumber || parsed.panNumber,
+    businessType: data.businessType || parsed.businessType || undefined,
     stateCode: data.stateCode || parsed.stateCode,
     state: data.state || parsed.state,
   });
@@ -237,6 +265,7 @@ export const updateCompanyService = async (id, userId, data) => {
     const parsed = parseGstDetails(nextGst);
     data.gstNumber = nextGst;
     if (!data.panNumber) data.panNumber = parsed.panNumber;
+    if (!data.businessType && parsed.businessType) data.businessType = parsed.businessType;
     if (!data.stateCode) data.stateCode = parsed.stateCode;
     if (!data.state) data.state = parsed.state;
   }
