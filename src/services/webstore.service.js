@@ -29,7 +29,9 @@ export const getWebstoreByIdService = async (id, userId) => {
 export const createWebstoreService = async (userId, data) => {
   const existing = await findWebstoreByNameRepo(data.storeName, userId);
   if (existing) {
-    throw new Error(`Webstore with name "${data.storeName}" already exists.`);
+    const error = new Error(`Webstore with name "${data.storeName}" already exists.`);
+    error.statusCode = 409;
+    throw error;
   }
 
   return await createWebstoreRepo(userId, data);
@@ -44,7 +46,9 @@ export const updateWebstoreService = async (id, userId, data) => {
   if (data.storeName && data.storeName.trim() !== current.storeName) {
     const duplicate = await findWebstoreByNameRepo(data.storeName, userId);
     if (duplicate && duplicate.id !== id) {
-      throw new Error(`Webstore with name "${data.storeName}" already exists.`);
+      const error = new Error(`Webstore with name "${data.storeName}" already exists.`);
+      error.statusCode = 409;
+      throw error;
     }
   }
 

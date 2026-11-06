@@ -408,12 +408,67 @@ export const deletePurchaseChallanRepo = async (id, userId) => {
 export const searchProductSkusRepo = async (userId, search = "") => {
   const query = (search || "").trim();
 
+  const results = [];
+  const seen = new Set();
+
+  const addProduct = (p) => {
+    if (p.masterSku && !seen.has(p.masterSku.toUpperCase())) {
+      seen.add(p.masterSku.toUpperCase());
+      results.push({ sku: p.masterSku, name: p.productName || "", rate: Number(p.mrp) || 0 });
+    }
+  };
+
+  const addVariant = (v) => {
+    if (v.variantSku && !seen.has(v.variantSku.toUpperCase())) {
+      seen.add(v.variantSku.toUpperCase());
+      results.push({ sku: v.variantSku, name: v.product?.productName || "", rate: Number(v.product?.mrp) || 0 });
+    }
+  };
+
+  const addMaterial = (m) => {
+    if (m.masterSku && !seen.has(m.masterSku.toUpperCase())) {
+      seen.add(m.masterSku.toUpperCase());
+      results.push({ sku: m.masterSku, name: m.materialName || "", rate: Number(m.materialCost) || 0 });
+    }
+  };
+
+  const addChallanItem = (c) => {
+    if (c.sku && !seen.has(c.sku.toUpperCase())) {
+      seen.add(c.sku.toUpperCase());
+      results.push({ sku: c.sku, name: c.name || "", rate: Number(c.rate) || 0 });
+    }
+  };
+
+  const addGenericSku = (sku) => {
+    if (sku && !seen.has(sku.toUpperCase())) {
+      seen.add(sku.toUpperCase());
+      results.push({ sku, name: "", rate: 0 });
+    }
+  };
+
   if (!query) {
-    const [products, myntraItems, asinItems] = await Promise.all([
+    // 1. User specific items
+    const [products, variants, materials, previousChallanItems, myntraItems, asinItems] = await Promise.all([
       prisma.product.findMany({
         where: { userId, isActive: true },
-        take: 10,
+        take: 15,
         select: { id: true, masterSku: true, productName: true, mrp: true },
+      }),
+      prisma.productVariant.findMany({
+        where: { product: { userId, isActive: true } },
+        take: 15,
+        select: { id: true, variantSku: true, product: { select: { productName: true, mrp: true } } },
+      }),
+      prisma.material.findMany({
+        where: { userId, isActive: true },
+        take: 15,
+        select: { id: true, masterSku: true, materialName: true, materialCost: true },
+      }),
+      prisma.purchaseChallanItem.findMany({
+        where: { challan: { userId } },
+        take: 15,
+        select: { sku: true, name: true, rate: true },
+        orderBy: { createdAt: "desc" },
       }),
       prisma.myntraImport.findMany({
         where: { userId },
@@ -427,46 +482,44 @@ export const searchProductSkusRepo = async (userId, search = "") => {
       }),
     ]);
 
-    const results = [];
-    const seen = new Set();
+    products.forEach(addProduct);
+    variants.forEach(addVariant);
+    materials.forEach(addMaterial);
+    previousChallanItems.forEach(addChallanItem);
+    myntraItems.forEach(m => addGenericSku(m.sellerSku));
+    asinItems.forEach(a => addGenericSku(a.sku));
 
-    for (const p of products) {
-      if (p.masterSku && !seen.has(p.masterSku.toUpperCase())) {
-        seen.add(p.masterSku.toUpperCase());
-        results.push({
-          sku: p.masterSku,
-          name: p.productName || "",
-          rate: p.mrp || 0,
-        });
-      }
+    // If fewer than 25 items found for this user, supplement with all active products in system
+    if (results.length < 25) {
+      const remaining = 25 - results.length;
+      const [globalProducts, globalVariants, globalMaterials] = await Promise.all([
+        prisma.product.findMany({
+          where: { isActive: true },
+          take: remaining,
+          select: { id: true, masterSku: true, productName: true, mrp: true },
+        }),
+        prisma.productVariant.findMany({
+          where: { product: { isActive: true } },
+          take: remaining,
+          select: { id: true, variantSku: true, product: { select: { productName: true, mrp: true } } },
+        }),
+        prisma.material.findMany({
+          where: { isActive: true },
+          take: remaining,
+          select: { id: true, masterSku: true, materialName: true, materialCost: true },
+        }),
+      ]);
+
+      globalProducts.forEach(addProduct);
+      globalVariants.forEach(addVariant);
+      globalMaterials.forEach(addMaterial);
     }
 
-    for (const m of myntraItems) {
-      if (m.sellerSku && !seen.has(m.sellerSku.toUpperCase())) {
-        seen.add(m.sellerSku.toUpperCase());
-        results.push({
-          sku: m.sellerSku,
-          name: "",
-          rate: 0,
-        });
-      }
-    }
-
-    for (const a of asinItems) {
-      if (a.sku && !seen.has(a.sku.toUpperCase())) {
-        seen.add(a.sku.toUpperCase());
-        results.push({
-          sku: a.sku,
-          name: "",
-          rate: 0,
-        });
-      }
-    }
-
-    return results.slice(0, 20);
+    return results.slice(0, 25);
   }
 
-  const [products, myntraItems, asinItems] = await Promise.all([
+  // With search query
+  const [products, variants, materials, previousChallanItems, myntraItems, asinItems] = await Promise.all([
     prisma.product.findMany({
       where: {
         userId,
@@ -478,6 +531,37 @@ export const searchProductSkusRepo = async (userId, search = "") => {
       },
       take: 20,
       select: { id: true, masterSku: true, productName: true, mrp: true },
+    }),
+    prisma.productVariant.findMany({
+      where: {
+        product: { userId, isActive: true },
+        variantSku: { contains: query, mode: "insensitive" },
+      },
+      take: 20,
+      select: { id: true, variantSku: true, product: { select: { productName: true, mrp: true } } },
+    }),
+    prisma.material.findMany({
+      where: {
+        userId,
+        isActive: true,
+        OR: [
+          { masterSku: { contains: query, mode: "insensitive" } },
+          { materialName: { contains: query, mode: "insensitive" } },
+        ],
+      },
+      take: 20,
+      select: { id: true, masterSku: true, materialName: true, materialCost: true },
+    }),
+    prisma.purchaseChallanItem.findMany({
+      where: {
+        challan: { userId },
+        OR: [
+          { sku: { contains: query, mode: "insensitive" } },
+          { name: { contains: query, mode: "insensitive" } },
+        ],
+      },
+      take: 20,
+      select: { sku: true, name: true, rate: true },
     }),
     prisma.myntraImport.findMany({
       where: {
@@ -497,40 +581,63 @@ export const searchProductSkusRepo = async (userId, search = "") => {
     }),
   ]);
 
-  const results = [];
-  const seen = new Set();
+  products.forEach(addProduct);
+  variants.forEach(addVariant);
+  materials.forEach(addMaterial);
+  previousChallanItems.forEach(addChallanItem);
+  myntraItems.forEach(m => addGenericSku(m.sellerSku));
+  asinItems.forEach(a => addGenericSku(a.sku));
 
-  for (const p of products) {
-    if (p.masterSku && !seen.has(p.masterSku.toUpperCase())) {
-      seen.add(p.masterSku.toUpperCase());
-      results.push({
-        sku: p.masterSku,
-        name: p.productName || "",
-        rate: p.mrp || 0,
-      });
-    }
-  }
+  // If fewer than 25 items matched for this user, search globally across all products/variants/materials in system
+  if (results.length < 25) {
+    const remaining = 25 - results.length;
+    const [globalProducts, globalVariants, globalMaterials, globalChallanItems] = await Promise.all([
+      prisma.product.findMany({
+        where: {
+          isActive: true,
+          OR: [
+            { masterSku: { contains: query, mode: "insensitive" } },
+            { productName: { contains: query, mode: "insensitive" } },
+          ],
+        },
+        take: remaining,
+        select: { id: true, masterSku: true, productName: true, mrp: true },
+      }),
+      prisma.productVariant.findMany({
+        where: {
+          product: { isActive: true },
+          variantSku: { contains: query, mode: "insensitive" },
+        },
+        take: remaining,
+        select: { id: true, variantSku: true, product: { select: { productName: true, mrp: true } } },
+      }),
+      prisma.material.findMany({
+        where: {
+          isActive: true,
+          OR: [
+            { masterSku: { contains: query, mode: "insensitive" } },
+            { materialName: { contains: query, mode: "insensitive" } },
+          ],
+        },
+        take: remaining,
+        select: { id: true, masterSku: true, materialName: true, materialCost: true },
+      }),
+      prisma.purchaseChallanItem.findMany({
+        where: {
+          OR: [
+            { sku: { contains: query, mode: "insensitive" } },
+            { name: { contains: query, mode: "insensitive" } },
+          ],
+        },
+        take: remaining,
+        select: { sku: true, name: true, rate: true },
+      }),
+    ]);
 
-  for (const m of myntraItems) {
-    if (m.sellerSku && !seen.has(m.sellerSku.toUpperCase())) {
-      seen.add(m.sellerSku.toUpperCase());
-      results.push({
-        sku: m.sellerSku,
-        name: "",
-        rate: 0,
-      });
-    }
-  }
-
-  for (const a of asinItems) {
-    if (a.sku && !seen.has(a.sku.toUpperCase())) {
-      seen.add(a.sku.toUpperCase());
-      results.push({
-        sku: a.sku,
-        name: "",
-        rate: 0,
-      });
-    }
+    globalProducts.forEach(addProduct);
+    globalVariants.forEach(addVariant);
+    globalMaterials.forEach(addMaterial);
+    globalChallanItems.forEach(addChallanItem);
   }
 
   return results.slice(0, 25);

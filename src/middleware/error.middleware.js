@@ -1,5 +1,7 @@
 export const errorHandler = (err, req, res, next) => {
-  console.error(err);
+  if (!err?.statusCode || err.statusCode >= 500) {
+    console.error(err);
+  }
 
   // Handle Zod validation errors cleanly
   if (err?.name === "ZodError" || err?.issues) {
