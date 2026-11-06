@@ -234,7 +234,7 @@ export const importMaterialsFromExcelService = async (userId, fileBuffer) => {
     if (!hasAnyValue) continue;
 
     // Extract all fields
-    const sku = String(row["sku"] || row["mastersku"] || "").trim();
+    const sku = String(row["sku"] || row["materialsku"] || row["mastersku"] || "").trim();
     const masterSku = String(row["mastersku"] || row["sku"] || "").trim();
     const materialName = String(row["materialname"] || row["name"] || "").trim();
     const category = String(row["category"] || "").trim();
@@ -243,28 +243,18 @@ export const importMaterialsFromExcelService = async (userId, fileBuffer) => {
     const manufacturingGroup = String(row["manufacturinggroup"] || row["mfggroup"] || "").trim();
     const unit = String(row["unit"] || "Meters").trim();
     const hsnCode = String(row["hsncode"] || row["hsn"] || "").trim();
-    const brand = String(row["brandname"] || row["brand"] || "No Brand").trim();
+    const brand = String(row["brandname"] || row["brand"] || "").trim();
     const less = parseFloat(row["less(%)"] || row["less%"] || row["less"] || 0) || 0;
     const costApplyingMode = String(row["costapplyingmode"] || row["costmode"] || "").trim();
     const issueMode = String(row["issuemode"] || "").trim();
     const consumptionMode = String(row["consumptionmode"] || "").trim();
+    const rackAddress = String(row["rackaddress"] || row["rack"] || "").trim();
+    const asin = String(row["asin"] || "").trim();
+    const myntraSku = String(row["myntrasku"] || row["myntra"] || "").trim();
+    const fsnCode = String(row["fsncode"] || row["fsn"] || "").trim();
 
-    // Check mandatory fields
-    const missing = [];
-    if (!sku) missing.push("SKU");
-    if (!masterSku) missing.push("Master SKU");
-    if (!materialName) missing.push("Name");
-    if (!category) missing.push("Category");
-    if (!manufacturingGroup) missing.push("Manufacturing Group");
-    if (!unit) missing.push("Unit");
-    if (!hsnCode) missing.push("HSN Code");
-    if (!brand) missing.push("Brand Name");
-    if (!costApplyingMode) missing.push("Cost Applying Mode");
-    if (!issueMode) missing.push("Issue Mode");
-    if (!consumptionMode) missing.push("Consumption Mode");
-
-    if (missing.length > 0) {
-      validationErrors.push(`Row ${rowNum}: Required field(s) missing [${missing.join(", ")}]`);
+    if (!sku && !masterSku && !materialName) {
+      validationErrors.push(`Row ${rowNum}: Material SKU or Name is required.`);
       continue;
     }
 
@@ -285,9 +275,10 @@ export const importMaterialsFromExcelService = async (userId, fileBuffer) => {
     const gsmRangeFrom = Number(row["gsmrangefrom"] || row["gsmfrom"]) || 0;
     const gsmRangeTo = Number(row["gsmrangeto"] || row["gsmto"]) || 0;
     const gstRate = row["gstrate"] !== undefined && row["gstrate"] !== "" ? Number(row["gstrate"]) : 5;
-    const materialCost = Number(row["materialcost"] || row["cost"]) || 0;
+    const materialCost = Number(row["materialcost"] || row["cost"] || row["openingrate"]) || 0;
     const mrp = String(row["mrp"] ?? "0").trim() || "0";
     const salesRate = Number(row["salesrate"]) || 0;
+    const openingStock = parseInt(row["openingstock"] || row["stock"], 10) || 0;
     const reorderLevelStock = parseInt(row["reorderlevelstock"] || row["reorderlevel"], 10) || 0;
 
     // Parse booleans
@@ -305,62 +296,122 @@ export const importMaterialsFromExcelService = async (userId, fileBuffer) => {
     const description = String(row["description"] || row["desc"] || "").trim();
     const purchaseType = String(row["purchasetype"] || "").trim();
 
-    const payload = {
-      userId,
-      sku,
-      masterSku,
-      materialName,
-      category,
-      subCategory: subCategory || null,
-      forUse: forUse || null,
-      manufacturingGroup,
-      unit,
-      colors,
-      width,
-      widthRangeFrom,
-      widthRangeTo,
-      gsm,
-      gsmRangeFrom,
-      gsmRangeTo,
-      gstRate,
-      hsnCode,
-      brand,
-      less,
-      description,
-      costApplyingMode,
-      materialCost,
-      mrp,
-      salesRate,
-      reorderLevelStock,
-      purchaseType,
-      isStockDetailsCompulsory,
-      issueMode,
-      consumptionMode,
-      isIssuable,
-      isSellable,
-      isActive: true,
-      attributes: [],
-    };
-
     try {
-      const existing = await findMaterialBySkuOrMasterSku(sku, masterSku, userId);
+      const effectiveSku = sku || masterSku;
+      const effectiveMasterSku = masterSku || sku;
+      const existing = await findMaterialBySkuOrMasterSku(effectiveSku, effectiveMasterSku, userId);
+
       if (existing) {
-        await updateMaterial(existing.id, payload);
+        // Update existing material with non-empty incoming values
+        const updatePayload = {
+          ...existing,
+        };
+        if (materialName) updatePayload.materialName = materialName;
+        if (category) updatePayload.category = category;
+        if (subCategory) updatePayload.subCategory = subCategory;
+        if (forUse) updatePayload.forUse = forUse;
+        if (manufacturingGroup) updatePayload.manufacturingGroup = manufacturingGroup;
+        if (unit) updatePayload.unit = unit;
+        if (colors.length > 0) updatePayload.colors = colors;
+        if (width > 0) updatePayload.width = width;
+        if (gsm > 0) updatePayload.gsm = gsm;
+        if (gstRate !== undefined) updatePayload.gstRate = gstRate;
+        if (hsnCode) updatePayload.hsnCode = hsnCode;
+        if (brand) updatePayload.brand = brand;
+        if (costApplyingMode) updatePayload.costApplyingMode = costApplyingMode;
+        if (materialCost > 0) updatePayload.materialCost = materialCost;
+        if (mrp && mrp !== "0") updatePayload.mrp = mrp;
+        if (salesRate > 0) updatePayload.salesRate = salesRate;
+        if (reorderLevelStock > 0) updatePayload.reorderLevelStock = reorderLevelStock;
+        if (openingStock > 0) updatePayload.openingStock = openingStock;
+        if (rackAddress) updatePayload.rackAddress = rackAddress;
+        if (asin) updatePayload.asin = asin;
+        if (myntraSku) updatePayload.myntraSku = myntraSku;
+        if (fsnCode) updatePayload.fsnCode = fsnCode;
+        if (issueMode) updatePayload.issueMode = issueMode;
+        if (consumptionMode) updatePayload.consumptionMode = consumptionMode;
+
+        await updateMaterial(existing.id, updatePayload);
+        await autoPersistMaterialOptions(userId, updatePayload);
         updatedCount++;
       } else {
-        await createMaterial(payload);
+        // Create new material with sensible defaults
+        const createPayload = {
+          userId,
+          sku: effectiveSku,
+          masterSku: effectiveMasterSku,
+          materialName: materialName || effectiveMasterSku || effectiveSku,
+          category: category || "General",
+          subCategory: subCategory || null,
+          forUse: forUse || null,
+          manufacturingGroup: manufacturingGroup || "General",
+          unit: unit || "Meters",
+          colors,
+          width,
+          widthRangeFrom,
+          widthRangeTo,
+          gsm,
+          gsmRangeFrom,
+          gsmRangeTo,
+          gstRate,
+          hsnCode: hsnCode || "0000",
+          brand: brand || "No Brand",
+          less,
+          description: description || null,
+          costApplyingMode: costApplyingMode || "FIFO",
+          materialCost,
+          mrp,
+          salesRate,
+          openingStock,
+          reorderLevelStock,
+          purchaseType: purchaseType || null,
+          isStockDetailsCompulsory,
+          issueMode: issueMode || "Direct",
+          consumptionMode: consumptionMode || "Standard",
+          isIssuable,
+          isSellable,
+          rackAddress: rackAddress || null,
+          asin: asin || null,
+          myntraSku: myntraSku || null,
+          fsnCode: fsnCode || null,
+          isActive: true,
+          attributes: [],
+        };
+
+        const created = await createMaterial(createPayload);
+        if (asin && asin.trim()) {
+          try {
+            await upsertAsinImport({
+              userId,
+              asin: asin.trim(),
+              sku: effectiveMasterSku,
+              rackAddress: rackAddress || null,
+              generateBarcode: "No",
+            });
+          } catch (asinErr) {
+            console.error("Failed to sync ASIN to AsinImport:", asinErr);
+          }
+        }
+        await autoPersistMaterialOptions(userId, createPayload);
         importedCount++;
       }
-      await autoPersistMaterialOptions(userId, payload);
     } catch (saveErr) {
       console.error(`Failed to save material row ${rowNum}:`, saveErr);
-      validationErrors.push(`Row ${rowNum} (${sku}): ${saveErr.message || "Failed to save"}`);
+      validationErrors.push(`Row ${rowNum} (${sku || masterSku}): ${saveErr.message || "Failed to save"}`);
     }
   }
 
-  if (importedCount === 0 && updatedCount === 0 && validationErrors.length > 0) {
-    const errorPreview = validationErrors.slice(0, 3).join(". ");
-    throw new Error(`Validation failed for sheet rows. ${errorPreview}`);
+  let message = "";
+  if (importedCount > 0 && updatedCount > 0) {
+    message = `Successfully imported ${importedCount} new material(s) and updated ${updatedCount} existing material(s).`;
+  } else if (importedCount > 0) {
+    message = `Successfully imported ${importedCount} new material(s).`;
+  } else if (updatedCount > 0) {
+    message = `Successfully updated ${updatedCount} existing material(s).`;
+  } else if (validationErrors.length > 0) {
+    message = `Validation failed for some rows: ${validationErrors[0]}`;
+  } else {
+    message = "No material records were processed.";
   }
 
   return {
@@ -368,12 +419,11 @@ export const importMaterialsFromExcelService = async (userId, fileBuffer) => {
     updatedCount,
     totalProcessed: importedCount + updatedCount,
     errors: validationErrors,
+    message,
   };
 };
 
-// ======================================================
-// Auto Persist Dropdown Options
-// ======================================================
+
 
 export const autoPersistMaterialOptions = async (userId, data) => {
   try {
